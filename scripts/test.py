@@ -1,7 +1,7 @@
-from sympy import symbols, Function, Derivative, Eq, Symbol
+from sympy import symbols, Function, Derivative, Eq, Symbol, lambdify
 import numpy as np
-from scipy.integrate import solve_ivp as solve
 import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
 
 # Parameters
 params = {
@@ -79,21 +79,24 @@ EGF_ = Function("EGF")(t_)  # Keep EGF(t_) as a time-varying input
 #symbol_list = "EGFR EGFR_s EGFR_endo"
 #flat_sb = {k:f'{k}_' for k in symbol_list.split(' ')}
 
-subs_map = {
-    EGFR: EGFR_,
-    EGFR_s: EGFR_s_,
-    EGFR_endo: EGFR_endo_,
-    t: t_,
-    EGF: EGF_
-}
+#subs_map = {
+#    EGFR: EGFR_,
+#    EGFR_s: EGFR_s_,
+#    EGFR_endo: EGFR_endo_,
+#    t: t_,
+#    EGF: EGF_
+#}
 
-from sympy import lambdify
+subs_map = {globals()[k]:globals()[f'{k}_']}
+subs_map[t] = t_ 
 
 # Parameters list
-parameters = [r12, r21, r23, r31]
+#parameters = [r12, r21, r23, r31]
+parameters = [globals()[p] for p in param_list]
 
 # Full argument list: t, states, params, input
-arg_list = (t_, EGFR_, EGFR_s_, EGFR_endo_, *parameters, EGF_)
+#arg_list = (t_, EGFR_, EGFR_s_, EGFR_endo_, *parameters, EGF_)
+arg_list = (t_, *subs_map.values(), *parameters, EGF_)
 
 # Lambdified RHS functions
 rhs_funcs = [
@@ -101,27 +104,70 @@ rhs_funcs = [
     for rhs in rhs_exprs
 ]
 
+#def egfr_system(t, y, param_values, EGF_func):
+#    EGFR, EGFR_s, EGFR_endo = y
+#    EGF_val = EGF_func(t)
+#
+#    args = [t, EGFR, EGFR_s, EGFR_endo, *param_values, EGF_val]
+#
+#    return [f(*args) for f in rhs_funcs]
 
 def egfr_system(t, y, param_values, EGF_func):
-    EGFR, EGFR_s, EGFR_endo = y
+    #EGFR, EGFR_s, EGFR_endo = y
     EGF_val = EGF_func(t)
-
-    args = [t, EGFR, EGFR_s, EGFR_endo, *param_values, EGF_val]
-
+    args = [t, *y, *param_values, EGF_val]
     return [f(*args) for f in rhs_funcs]
-
-
-from scipy.integrate import solve_ivp
-import numpy as np
 
 # Parameter values
 param_values = [1.0, 0.5, 0.3, 0.2]  # r12, r21, r23, r31
+"""
+Alright, how to set default params?
+Nothing in the docs, look in github?
+Found this, is this order of some other file?
+    <parameters>r_12, egf_input, r_23,  r_21, r_31, k_12, K_12, k_21, K_21, k_34, K_34,k_93, k_43, K_43,k_56, K_56, k_65, K_65, k_78, K_78, k_87, K_87, k_82, K_82, s_12, s_21, k_910, K_910, k_109, K_109</parameters>
+"""
 
 # Input function
 EGF_input = lambda t: 2.0 if t < 10 else 0.5
 
 # Initial conditions
-y0 = [1.0, 0.0, 0.0]  # [EGFR, EGFR_s, EGFR_endo]
+#y0 = [1.0, 0.0, 0.0]  # [EGFR, EGFR_s, EGFR_endo]
+# Taken from github
+initial_cond_defaults = {
+    "RAS":1,
+    "RAS_s":0,
+    "RAF":1,
+    "RAF_s":0,
+    "MEK":1,
+    "MEK_s":0,
+    "ERK_s":0,
+    "EGFR":1,
+    "EGFR_s":0,
+    "EGFR_endo":0,
+    "NFB":1,
+    "NFB_s":0,
+    "KTR":0.5,
+    "KTR_s":0.5,
+    "EGF":0,
+    "light":1,
+        }
+
+# Finishin up for today; Next day work:
+# TODO: finish making the defaults & initial conditions; then do the system func. Then do notebook-based interactive visuals
+
+assert len(initial_cond_defaults.keys()) == len(nodes), "Sanity check"
+
+defaults = {"r12":, "r23", "r31", "r21",
+"k12", "K12", "k21", "K21",
+"k34", "K34","knfb","k43","K43",
+"k56", "K56","k65","K65",
+"k78", "K78","k87","K87",
+"k910","K910",
+"s12", "s21",
+"f12", "F12", "f21", "F21",
+"ktr_init", "rho"}
+
+y0 = [ n for n in nodes]
 
 # Time span
 t_span = (0, 30)
