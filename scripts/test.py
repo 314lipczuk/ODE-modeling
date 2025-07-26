@@ -3,14 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
-# Parameters
-params = {
-    'r12': 1.0,
-    'r21': 0.5,
-    'r23': 0.3,
-    'r31': 0.2,
-}
-
 param_list = ["r12", "r23", "r31", "r21",
 "k12", "K12", "k21", "K21",
 "k34", "K34","knfb","k43","K43",
@@ -27,11 +19,8 @@ for p in param_list: globals()[p] = Symbol(p)
 nodes = ["RAS", "RAF", "MEK", "ERK", "EGFR", "NFB", "KTR"] 
 nodes.extend(*[[f'{b}_s' for b in nodes]])
 nodes.append('EGFR_endo')
-#nodes.append('EGF')
-#nodes.append('light')
 
 t = symbols('t')
-
 EGF_fn = Function("EGF")
 light_fn = Function("light")
 EGF = EGF_fn(t)
@@ -40,7 +29,6 @@ light = light_fn(t)
 
 for n in nodes: globals()[n] = Function(n)(t)
 
-#r12, r21, r23, r31 = symbols("r12 r21 r23 r31")
 eqs = [dEGFR_dt := Eq(Derivative(EGFR, t),          -r12 * EGF * EGFR + r21 * EGFR_s + r31 * EGFR_endo),
     dEGFRs_dt := Eq(Derivative(EGFR_s,t),           r12 * EGF * EGFR - (r21 + r31 ) * EGFR_s),
     dEGFR_endo_dt := Eq(Derivative(EGFR_endo, t),   r23 * EGFR_s - r31 * EGFR_endo ),
@@ -65,17 +53,6 @@ eqs = [dEGFR_dt := Eq(Derivative(EGFR, t),          -r12 * EGF * EGFR + r21 * EG
 
 rhs_exprs = [e.rhs for e in eqs]
 
-"""
-What's my goal here?
-
-Define individual DEs, inputs, parameters,
-and for a given input simulate pathway to produce an output.
-Have an introspection to every latent variable, maybe plot selected ones.
-"""
-
-
-# Flat symbolic variables
-#EGFR_, EGFR_s_, EGFR_endo_ = symbols("EGFR EGFR_s EGFR_endo")
 for n in nodes: globals()[f'{n}_'] = Symbol(n) 
 
 t_ = Symbol("t")
@@ -92,16 +69,6 @@ light_ =light_fn(t_)
 # OUTPUT: xyz_system function, or at least lambdified set of equations.
 # For now however, doing it manually is fine.
 
-#symbol_list = "EGFR EGFR_s EGFR_endo"
-#flat_sb = {k:f'{k}_' for k in symbol_list.split(' ')}
-
-#subs_map = {
-#    EGFR: EGFR_,
-#    EGFR_s: EGFR_s_,
-#    EGFR_endo: EGFR_endo_,
-#    t: t_,
-#    EGF: EGF_
-#}
 flat_symbols = {globals()[k]:Symbol(k) for k in nodes}
 subs_map = flat_symbols.copy() 
 subs_map[t] = t_ 
@@ -109,12 +76,8 @@ subs_map[t] = t_
 subs_map[Function("EGF")(t)] = EGF_
 subs_map[Function("light")(t)] = light_
 
-# Parameters list
-#parameters = [r12, r21, r23, r31]
 parameters = [globals()[p] for p in param_list]
 
-# Full argument list: t, states, params, input
-#arg_list = (t_, EGFR_, EGFR_s_, EGFR_endo_, *parameters, EGF_)
 arg_list = (t_, *flat_symbols.values(), *parameters, EGF_, light_)
 
 # Lambdified RHS functions
@@ -123,38 +86,16 @@ rhs_funcs = [
     for rhs in rhs_exprs
 ]
 
-#def egfr_system(t, y, param_values, EGF_func):
-#    EGFR, EGFR_s, EGFR_endo = y
-#    EGF_val = EGF_func(t)
-#
-#    args = [t, EGFR, EGFR_s, EGFR_endo, *param_values, EGF_val]
-#
-#    return [f(*args) for f in rhs_funcs]
-
 def egfr_system(t, y, param_values, EGF_func, light_func):
-    #EGFR, EGFR_s, EGFR_endo = y
     EGF_val = EGF_func(t)
     light_val = light_func(t)
     args = [t, *y, *param_values, EGF_val, light_val]
     return [f(*args) for f in rhs_funcs]
 
-# Parameter values
-#param_values = [1.0, 0.5, 0.3, 0.2]  # r12, r21, r23, r31
-
-
-"""
-Alright, how to set default params?
-Nothing in the docs, look in github?
-Found this, is this order of some other file?
-    <parameters>r_12, egf_input, r_23,  r_21, r_31, k_12, K_12, k_21, K_21, k_34, K_34,k_93, k_43, K_43,k_56, K_56, k_65, K_65, k_78, K_78, k_87, K_87, k_82, K_82, s_12, s_21, k_910, K_910, k_109, K_109</parameters>
-"""
-
 # Input function
 EGF_input = lambda t: 2.0 if t < 10 else 0.5
 light_input = lambda t: 1.0
 
-# Initial conditions
-#y0 = [1.0, 0.0, 0.0]  # [EGFR, EGFR_s, EGFR_endo]
 # Taken from github
 initial_cond_defaults = {
     "RAS":1,
@@ -174,21 +115,15 @@ initial_cond_defaults = {
     }
 
 # Finishin up for today; Next day work:
-# TODO: finish making the defaults & initial conditions; then do the system func. Then do notebook-based interactive visuals
-
-#assert len(initial_cond_defaults.keys()) == len(nodes), "Sanity check"
-# not sure where to find them; so they are all 1 for now.
+# TODO: Do notebook-based interactive visuals
 
 param_defaults = { k:1 for k in param_list }
 param_values = [param_defaults[p] for p in param_list]
-
 
 state_vars = [str(eq.lhs.args[0]) for eq in eqs]
 assert len(state_vars) == len(rhs_exprs), "Sanity check for length of non-input nodes"
 
 y0 = [(initial_cond_defaults.get(n) or 0.5) for n in state_vars]
-
-
 
 # Time span
 t_span = (0, 30)
@@ -197,29 +132,6 @@ t_eval = np.linspace(*t_span, 300)
 # Solve
 sol = solve_ivp(lambda t, y: egfr_system(t, y, param_values, EGF_input, light_input),
                 t_span, y0, t_eval=t_eval)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-print(type(sol))
-
-import matplotlib.pyplot as plt
 
 def plot_ivp_solution(sol, labels=None, title="Simulation Results"):
     """
@@ -247,8 +159,4 @@ def plot_ivp_solution(sol, labels=None, title="Simulation Results"):
     plt.grid(True)
     plt.tight_layout()
     plt.show()
-
-
-# Example usage
-plot_ivp_solution(sol, labels=nodes, title="EGFR Pathway Dynamics")
 
