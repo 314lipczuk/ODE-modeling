@@ -114,31 +114,83 @@ def egfr_system(t, y, param_values, light_func):
     return [f(*args) for f in rhs_funcs]
 
 # Input function
-EGF_input = lambda t: 2.0 if t < 10 else 0.5
+#EGF_input = lambda t: 2.0 if t < 10 else 0.5
 light_input = lambda t: 1.0
 
 # Taken from github
 initial_cond_defaults = {
-    "RAS":1,
-    "RAS_s":0,
-    "RAF":1,
+    "RAS":0.9,
+    "RAS_s":0.01,
+    "RAF":0.7,
     "RAF_s":0,
-    "MEK":1,
+    "MEK":0.68,
     "MEK_s":0,
+    "ERK":0.26,
     "ERK_s":0,
-    "NFB":1,
+    "NFB":0.1,
     "NFB_s":0,
     "KTR":0.5,
     "KTR_s":0.5,
     }
 
-param_defaults = { k:1 for k in param_list }
+param_defaults = {
+    # Binding/activation Michaelis-Menten constants
+    "K12": 0.5, "K21": 0.3,
+    "K34": 0.4, "K43": 0.3,
+    "K56": 0.4, "K65": 0.3,
+    "K78": 0.4, "K87": 0.3,
+    "K910": 0.4,
+
+    # Rate constants: activation
+    "k34": 1.0,
+    "k56": 1.2,
+    "k78": 1.0,
+    "k910": 1.0,
+    "f12": 0.8,
+    "s12": 0.5,
+
+    # Rate constants: deactivation
+    "k21": 0.5,
+    "k43": 0.6,
+    "k65": 0.5,
+    "k87": 0.4,
+    "f21": 0.5,
+    "s21": 0.3,
+
+    # Feedback coupling
+    "knfb": 0.5,
+
+    # NFB affinities
+    "F12": 0.4,
+    "F21": 0.3,
+
+    # Total protein concentrations (dimensionless units)
+    #"totRAS": 0.1,
+    #"totRAF": 0.7,
+    #"totMEK": 0.68,
+    #"totERK": 0.26,
+    #"totNFB": 0.1,
+    #"totKTR": 1.0,
+
+    "totRAS": 1,
+    "totRAF": 1,
+    "totMEK": 1,
+    "totERK": 1,
+    "totNFB": 1,
+    "totKTR": 1,
+
+    # Other
+    "ktr_init": 0.5,
+    "rho": 0.0,
+}
+
 param_values = [param_defaults[p] for p in param_list]
 
 state_vars = [str(eq.lhs.args[0]) for eq in eqs]
 assert len(state_vars) == len(rhs_exprs), "Sanity check for length of non-input nodes"
 
-y0 = [(initial_cond_defaults.get(n) or 0.5) for n in state_vars]
+print(state_vars)
+y0 = [initial_cond_defaults[n[0:-3]] for n in state_vars]
 
 # Time span
 t_span = (0, 30)

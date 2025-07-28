@@ -57,7 +57,7 @@ def make_slider_node_widget(mo, nodes, selected_params):
     })
     plot_nodes = mo.ui.multiselect(
         options=nodes,
-        value=[],
+        value=["ERK_s"],
         label="Select state variables to plot"
     )
 
@@ -76,13 +76,14 @@ def merge_params(mo, param_list, sliders):
     p_tbl = mo.ui.table(data=dict(zip(param_list, merged_param_values)))
     p_tbl
 
+
     return (merged_param_values,)
 
 
 @app.cell(hide_code=True)
 def _(initial_cond_defaults, np, state_vars):
     from math import sin
-    y0 = [initial_cond_defaults.get(v, 0.5) for v in state_vars]
+    y0 = [initial_cond_defaults[v[0:-3]] for v in state_vars]
     t_vals = np.linspace(0, 30, 300)
 
     return sin, t_vals, y0
@@ -91,7 +92,8 @@ def _(initial_cond_defaults, np, state_vars):
 @app.cell
 def input(mo, sin):
     mo.md("# Inputs")
-    light_input = lambda t: sin(2*t) if t < 1.5 else 0
+    #light_input = lambda t: 10 if 13 < t < 15 else 0
+    light_input = lambda t: 0.2+abs(sin(t)) if 3 < t <5 else 0.2  
     return (light_input,)
 
 
@@ -120,6 +122,12 @@ def show_widgets(mo, plot_nodes, selected_params, sliders):
 @app.cell
 def _(eqs):
     eqs
+    return
+
+
+@app.cell
+def _(y0):
+    y0
     return
 
 
