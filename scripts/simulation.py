@@ -3,8 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
-param_list = ["r12", "r23", "r31", "r21",
-"k12", "K12", "k21", "K21",
+param_list = ["K12", "k21", "K21",
 "k34", "K34","knfb","k43","K43",
 "k56", "K56","k65","K65",
 "k78", "K78","k87","K87",
@@ -16,25 +15,17 @@ param_list = ["r12", "r23", "r31", "r21",
 # horrible horrible hack. TODO: When i know more about code like this, re-factor this into something more sane, with no namespace-hacking.
 for p in param_list: globals()[p] = Symbol(p)
 
-nodes = ["RAS", "RAF", "MEK", "ERK", "EGFR", "NFB", "KTR"] 
+nodes = ["RAS", "RAF", "MEK", "ERK", "NFB", "KTR"] 
 nodes.extend(*[[f'{b}_s' for b in nodes]])
-nodes.append('EGFR_endo')
 
 t = symbols('t')
-EGF_fn = Function("EGF")
 light_fn = Function("light")
-EGF = EGF_fn(t)
 light = light_fn(t)
-
 
 for n in nodes: globals()[n] = Function(n)(t)
 
-eqs = [dEGFR_dt := Eq(Derivative(EGFR, t),          -r12 * EGF * EGFR + r21 * EGFR_s + r31 * EGFR_endo),
-    dEGFRs_dt := Eq(Derivative(EGFR_s,t),           r12 * EGF * EGFR - (r21 + r31 ) * EGFR_s),
-    dEGFR_endo_dt := Eq(Derivative(EGFR_endo, t),   r23 * EGFR_s - r31 * EGFR_endo ),
-
-    dRAS_dt := Eq(Derivative(RAS, t ),              -(k12*EGFR_s+light) * (RAS/(K12+RAS)) + k21 * (RAS_s/(K21+RAS_s))),
-    dRASs_dt:= Eq(Derivative(RAS_s, t ),            (k12*EGFR_s+light) * (RAS/(K12+RAS)) - k21 * (RAS_s/(K21+RAS_s))),
+eqs = [dRAS_dt := Eq(Derivative(RAS, t ),              -light * (RAS/(K12+RAS)) + k21 * (RAS_s/(K21+RAS_s))),
+    dRASs_dt:= Eq(Derivative(RAS_s, t ),            light * (RAS/(K12+RAS)) - k21 * (RAS_s/(K21+RAS_s))),
 
     dRAF_dt := Eq(Derivative(RAF, t ),              -(k34*RAS_s) * (RAF/(K34+RAF)) + (knfb * NFB_s + k43) * (RAF_s/(K43+RAF_s))),
     dRAFs_dt := Eq(Derivative(RAF_s, t ),           k34 * RAS_s * (RAF/(K34+RAF)) - (knfb * NFB_s + k43) * (RAF_s/(K43+RAF_s))),
@@ -56,9 +47,6 @@ rhs_exprs = [e.rhs for e in eqs]
 for n in nodes: globals()[f'{n}_'] = Symbol(n) 
 
 t_ = Symbol("t")
-#EGF_ = Function("EGF")(t_)  # Keep EGF(t_) as a time-varying input
-#light_ = Function("light")(t_)  # Keep EGF(t_) as a time-varying input
-EGF_ = EGF_fn(t_)
 light_ =light_fn(t_)
 
 # TODO: figure out a way to automatically generate the 'flat' symbols, and its dependants
@@ -73,12 +61,11 @@ flat_symbols = {globals()[k]:Symbol(k) for k in nodes}
 subs_map = flat_symbols.copy() 
 subs_map[t] = t_ 
 
-subs_map[Function("EGF")(t)] = EGF_
 subs_map[Function("light")(t)] = light_
 
 parameters = [globals()[p] for p in param_list]
 
-arg_list = (t_, *flat_symbols.values(), *parameters, EGF_, light_)
+arg_list = (t_, *flat_symbols.values(), *parameters, light_)
 
 # Lambdified RHS functions
 rhs_funcs = [
@@ -86,10 +73,9 @@ rhs_funcs = [
     for rhs in rhs_exprs
 ]
 
-def egfr_system(t, y, param_values, EGF_func, light_func):
-    EGF_val = EGF_func(t)
+def egfr_system(t, y, param_values, light_func):
     light_val = light_func(t)
-    args = [t, *y, *param_values, EGF_val, light_val]
+    args = [t, *y, *param_values, light_val]
     return [f(*args) for f in rhs_funcs]
 
 # Input function
@@ -105,9 +91,6 @@ initial_cond_defaults = {
     "MEK":1,
     "MEK_s":0,
     "ERK_s":0,
-    "EGFR":1,
-    "EGFR_s":0,
-    "EGFR_endo":0,
     "NFB":1,
     "NFB_s":0,
     "KTR":0.5,
@@ -130,33 +113,5 @@ t_span = (0, 30)
 t_eval = np.linspace(*t_span, 300)
 
 # Solve
-sol = solve_ivp(lambda t, y: egfr_system(t, y, param_values, EGF_input, light_input),
+sol = solve_ivp(lambda t, y: egfr_system(t, y, param_values, light_input),
                 t_span, y0, t_eval=t_eval)
-
-def plot_ivp_solution(sol, labels=None, title="Simulation Results"):
-    """
-    Plot the output of a solve_ivp solution object.
-
-    Parameters:
-        sol : OdeResult
-            Output from scipy.integrate.solve_ivp
-        labels : list of str
-            Labels for each state variable (same order as in sol.y)
-        title : str
-            Plot title
-    """
-    plt.figure(figsize=(10, 6))
-    num_vars = sol.y.shape[0]
-
-    for i in range(num_vars):
-        label = labels[i] if labels else f"y{i}"
-        plt.plot(sol.t, sol.y[i], label=label)
-
-    plt.xlabel("Time")
-    plt.ylabel("Concentration")
-    plt.title(title)
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-

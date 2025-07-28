@@ -14,6 +14,7 @@ def _():
         state_vars,
         initial_cond_defaults,
         nodes,
+        eqs
         #param_values
     )
     from scipy.integrate import solve_ivp
@@ -23,6 +24,7 @@ def _():
 
     return (
         egfr_system,
+        eqs,
         initial_cond_defaults,
         mo,
         nodes,
@@ -40,7 +42,7 @@ def make_param_widget(mo, param_list):
     selected_params = mo.ui.multiselect(
         options=param_list,
         label="Select parameters to adjust",
-        value=["r12", "k12"]
+        value=[]
     )
 
 
@@ -55,19 +57,11 @@ def make_slider_node_widget(mo, nodes, selected_params):
     })
     plot_nodes = mo.ui.multiselect(
         options=nodes,
-        value=["EGFR", "EGFR_s", "ERK_s"],
+        value=[],
         label="Select state variables to plot"
     )
 
     return plot_nodes, sliders
-
-
-@app.cell
-def param_table(merged_param_values, mo, param_list):
-
-    p_tbl = mo.ui.table(data=dict(zip(param_list, merged_param_values)))
-    p_tbl
-    return
 
 
 @app.cell(hide_code=True)
@@ -97,27 +91,20 @@ def _(initial_cond_defaults, np, state_vars):
 @app.cell
 def input(mo, sin):
     mo.md("# Inputs")
-    EGF_input = lambda t: sin(t) if 0.5 < t < 2.3 else 0
-    light_input = lambda t: 1
-    return EGF_input, light_input
+    light_input = lambda t: sin(t) if t < 2.5 else 0
+    return (light_input,)
 
 
 @app.cell(hide_code=True)
-def input_plot(EGF_input, light_input, plt, t_vals):
+def input_plot(light_input, plt, t_vals):
+    fig0, (ax1) = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
 
-    fig0, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
 
-    ax1.plot(t_vals, [EGF_input(t) for t in t_vals])
-    ax1.set_title("EGF input")
+    ax1.plot(t_vals, [light_input(t) for t in t_vals])
+    ax1.set_title("light input")
     ax1.set_xlabel("time")
-    ax1.set_ylabel("EGF conc")
+    ax1.set_ylabel("light conc")
     ax1.grid(True)
-
-    ax2.plot(t_vals, [light_input(t) for t in t_vals])
-    ax2.set_title("light input")
-    ax2.set_xlabel("time")
-    ax2.set_ylabel("light conc")
-    ax2.grid(True)
 
     plt.show()
 
@@ -130,9 +117,14 @@ def show_widgets(mo, plot_nodes, selected_params, sliders):
     return
 
 
+@app.cell
+def _(eqs):
+    eqs
+    return
+
+
 @app.cell(hide_code=True)
 def simulation(
-    EGF_input,
     egfr_system,
     light_input,
     merged_param_values,
@@ -144,7 +136,7 @@ def simulation(
     y0,
 ):
     def wrapped_system(t, y):
-        return egfr_system(t, y, merged_param_values, EGF_input, light_input)
+        return egfr_system(t, y, merged_param_values, light_input)
 
 
     sol = solve_ivp(wrapped_system, (0, 30), y0, t_eval=t_vals)
