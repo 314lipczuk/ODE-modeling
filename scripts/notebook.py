@@ -13,8 +13,8 @@ def _():
         param_list,
         state_vars,
         initial_cond_defaults,
-        nodes,
-        eqs
+        active_variants as nodes,
+        eqs 
         #param_values
     )
     from scipy.integrate import solve_ivp
@@ -91,7 +91,7 @@ def _(initial_cond_defaults, np, state_vars):
 @app.cell
 def input(mo, sin):
     mo.md("# Inputs")
-    light_input = lambda t: sin(t) if t < 2.5 else 0
+    light_input = lambda t: sin(2*t) if t < 1.5 else 0
     return (light_input,)
 
 

@@ -12,39 +12,74 @@ param_list = ["K12", "k21", "K21",
 "f12", "F12", "f21", "F21",
 "ktr_init", "rho"]
 
+nodes = ["RAS", "RAF", "MEK", "ERK", "NFB", "KTR"]
+param_list.extend([f'tot{node}' for node in nodes])
+active_variants = [f'{n}_s' for n in nodes]
+
 # horrible horrible hack. TODO: When i know more about code like this, re-factor this into something more sane, with no namespace-hacking.
 for p in param_list: globals()[p] = Symbol(p)
 
-nodes = ["RAS", "RAF", "MEK", "ERK", "NFB", "KTR"] 
-nodes.extend(*[[f'{b}_s' for b in nodes]])
+#nodes.extend(*[[f'{b}_s' for b in nodes]])
 
 t = symbols('t')
 light_fn = Function("light")
 light = light_fn(t)
 
-for n in nodes: globals()[n] = Function(n)(t)
+#for n in nodes: globals()[n] = Function(n)(t)
+for n in active_variants: globals()[n] = Function(n)(t)
+for n in nodes: globals()[n] = Symbol(n)
 
-eqs = [dRAS_dt := Eq(Derivative(RAS, t ),              -light * (RAS/(K12+RAS)) + k21 * (RAS_s/(K21+RAS_s))),
-    dRASs_dt:= Eq(Derivative(RAS_s, t ),            light * (RAS/(K12+RAS)) - k21 * (RAS_s/(K21+RAS_s))),
+#eqs = [dRASs_dt:= Eq(Derivative(RAS_s, t ),            light * (RAS/(K12+RAS)) - k21 * (RAS_s/(K21+RAS_s))),
+#    dRAS_dt := Eq(Derivative(RAS, t ),           -light * (RAS/(K12+RAS)) + k21 * (RAS_s/(K21+RAS_s))),
+#    
+#
+#    dRAF_dt := Eq(Derivative(RAF, t ),              -(k34*RAS_s) * (RAF/(K34+RAF)) + (knfb * NFB_s + k43) * (RAF_s/(K43+RAF_s))),
+#    dRAFs_dt := Eq(Derivative(RAF_s, t ),           k34 * RAS_s * (RAF/(K34+RAF)) - (knfb * NFB_s + k43) * (RAF_s/(K43+RAF_s))),
+#
+#    dMEK_dt := Eq(Derivative(MEK, t),               -k56 * RAF_s * (MEK/(K56+MEK)) + k65 * (MEK_s/(K65+MEK_s))),
+#    dMEKs_dt := Eq(Derivative(MEK_s, t),            k56 * RAF_s * (MEK/(K56+MEK)) - k65 * (MEK_s/(K65+MEK_s))),
+#
+#    dERK_dt := Eq(Derivative(ERK, t),               -k78 * MEK_s * (ERK/(K78+ERK)) + k87 * (ERK_s/(K87+ERK_s))),
+#    dERKs_dt := Eq(Derivative(ERK_s, t),            k78 * MEK_s * (ERK/(K78+ERK)) - k87 * (ERK_s/(K87+ERK_s))),
+#
+#    dNFB_dt := Eq(Derivative(NFB, t),               -f12 * ERK_s * (NFB/F12+NFB) + f21*(NFB_s/(F21+NFB_s))),
+#    dNFBs_dt := Eq(Derivative(NFB_s, t),            f12 * ERK_s * (NFB/F12+NFB) - f21*(NFB_s/(F21+NFB_s))),
+#
+#    dKTR_dt := Eq(Derivative(KTR, t),               -(k910*ERK_s*(KTR/(K910+KTR)) + s12*KTR) + s21 * KTR_s),
+#    dKTRs_dt := Eq(Derivative(KTR_s, t),            (k910*ERK_s*(KTR/(K910+KTR)) + s12*KTR) - s21 * KTR_s) ]
+#
 
-    dRAF_dt := Eq(Derivative(RAF, t ),              -(k34*RAS_s) * (RAF/(K34+RAF)) + (knfb * NFB_s + k43) * (RAF_s/(K43+RAF_s))),
+base_eqs = [dRASs_dt:= Eq(Derivative(RAS_s, t ),         light * (RAS/(K12+RAS)) - k21 * (RAS_s/(K21+RAS_s))),
+    #dRAS_dt := Eq(Derivative(RAS, t ),           -light * (RAS/(K12+RAS)) + k21 * (RAS_s/(K21+RAS_s))),
+    
+
+    #dRAF_dt := Eq(Derivative(RAF, t ),              -(k34*RAS_s) * (RAF/(K34+RAF)) + (knfb * NFB_s + k43) * (RAF_s/(K43+RAF_s))),
     dRAFs_dt := Eq(Derivative(RAF_s, t ),           k34 * RAS_s * (RAF/(K34+RAF)) - (knfb * NFB_s + k43) * (RAF_s/(K43+RAF_s))),
 
-    dMEK_dt := Eq(Derivative(MEK, t),               -k56 * RAF_s * (MEK/(K56+MEK)) + k65 * (MEK_s/(K65+MEK_s))),
+    #dMEK_dt := Eq(Derivative(MEK, t),               -k56 * RAF_s * (MEK/(K56+MEK)) + k65 * (MEK_s/(K65+MEK_s))),
     dMEKs_dt := Eq(Derivative(MEK_s, t),            k56 * RAF_s * (MEK/(K56+MEK)) - k65 * (MEK_s/(K65+MEK_s))),
 
-    dERK_dt := Eq(Derivative(ERK, t),               -k78 * MEK_s * (ERK/(K78+ERK)) + k87 * (ERK_s/(K87+ERK_s))),
+    #dERK_dt := Eq(Derivative(ERK, t),               -k78 * MEK_s * (ERK/(K78+ERK)) + k87 * (ERK_s/(K87+ERK_s))),
     dERKs_dt := Eq(Derivative(ERK_s, t),            k78 * MEK_s * (ERK/(K78+ERK)) - k87 * (ERK_s/(K87+ERK_s))),
 
-    dNFB_dt := Eq(Derivative(NFB, t),               -f12 * ERK_s * (NFB/F12+NFB) + f21*(NFB_s/(F21+NFB_s))),
+    #dNFB_dt := Eq(Derivative(NFB, t),               -f12 * ERK_s * (NFB/F12+NFB) + f21*(NFB_s/(F21+NFB_s))),
     dNFBs_dt := Eq(Derivative(NFB_s, t),            f12 * ERK_s * (NFB/F12+NFB) - f21*(NFB_s/(F21+NFB_s))),
 
-    dKTR_dt := Eq(Derivative(KTR, t),               -(k910*ERK_s*(KTR/(K910+KTR)) + s12*KTR) + s21 * KTR_s),
+    #dKTR_dt := Eq(Derivative(KTR, t),               -(k910*ERK_s*(KTR/(K910+KTR)) + s12*KTR) + s21 * KTR_s),
     dKTRs_dt := Eq(Derivative(KTR_s, t),            (k910*ERK_s*(KTR/(K910+KTR)) + s12*KTR) - s21 * KTR_s) ]
+
+
+# Substitute the 2 variants by v1 and total - v1
+conservation_substitution = {globals()[k]:globals()[f'tot{k}']-globals()[f'{k}_s'] for k in nodes }
+#for e in eqs:
+#    e = e.subs(conservation_substitution)
+eqs = [e.subs(conservation_substitution) for e in base_eqs]
 
 rhs_exprs = [e.rhs for e in eqs]
 
-for n in nodes: globals()[f'{n}_'] = Symbol(n) 
+#for n in nodes: globals()[f'{n}_'] = Symbol(n) 
+for n in active_variants: globals()[f'{n}_'] = Symbol(n) 
+
 
 t_ = Symbol("t")
 light_ =light_fn(t_)
@@ -57,7 +92,7 @@ light_ =light_fn(t_)
 # OUTPUT: xyz_system function, or at least lambdified set of equations.
 # For now however, doing it manually is fine.
 
-flat_symbols = {globals()[k]:Symbol(k) for k in nodes}
+flat_symbols = {globals()[k]:Symbol(k) for k in active_variants}
 subs_map = flat_symbols.copy() 
 subs_map[t] = t_ 
 
@@ -96,9 +131,6 @@ initial_cond_defaults = {
     "KTR":0.5,
     "KTR_s":0.5,
     }
-
-# Finishin up for today; Next day work:
-# TODO: Do notebook-based interactive visuals
 
 param_defaults = { k:1 for k in param_list }
 param_values = [param_defaults[p] for p in param_list]
