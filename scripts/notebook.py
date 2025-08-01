@@ -86,14 +86,14 @@ def _(initial_cond_defaults, np, state_vars):
     y0 = [initial_cond_defaults[v[0:-3]] for v in state_vars]
     t_vals = np.linspace(0, 30, 300)
 
-    return sin, t_vals, y0
+    return t_vals, y0
 
 
 @app.cell
-def input(mo, sin):
+def input(mo):
     mo.md("# Inputs")
     #light_input = lambda t: 10 if 13 < t < 15 else 0
-    light_input = lambda t: 0.2+abs(sin(t)) if 3 < t <5 else 0.2  
+    light_input = lambda t: 1 if 3 < t <5 else 0.2  
     return (light_input,)
 
 
@@ -164,6 +164,25 @@ def simulation(
     plt.show()
 
 
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""
+    # General things that need doing:
+    ### Parameter estimation
+    Current values are semi-random, with little thought put into them being instructive. It would be nice if i could assign units to them as sanity check.
+    I need to do also find a library that will do fitting of these coefficients based on data I have.
+
+    ### Weird behavior of plot
+    The plot right now exhibits one problematic behavior: each subsequent node in the network shows weaker activation, where I'd expect it to exhibit a stronger one (RAS has a very steep activation, whereas RAF, MEK, ERK are subsequently weaker). This one requires checking with literature, as I'm not sure if this is really how it should behave.
+
+    ### Resolution idea
+    It's possible that two of the above are connected in a way. If I fit actual data from real cells, maybe the real parameters will also fix the diminishing steepness. 
+    """
+    )
     return
 
 
