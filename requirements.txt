@@ -4,3 +4,4 @@ sympy==1.12
 matplotlib==3.8.4
 ipython==8.24.0
 marimo==0.14.13
+symfit==0.5.6
