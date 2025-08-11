@@ -37,23 +37,12 @@ def _():
 
 
 @app.cell
-def make_param_widget(mo, param_list):
-    # cell: param selector
-    selected_params = mo.ui.multiselect(
-        options=param_list,
-        label="Select parameters to adjust",
-        value=[]
-    )
-
-
-    return (selected_params,)
-
-
-@app.cell
-def make_slider_node_widget(mo, nodes, selected_params):
+def make_slider_node_widget(mo, nodes, param_list):
+    from simulation import param_defaults
+    dp = param_defaults.copy()
     sliders = mo.ui.dictionary({
-        p: mo.ui.slider(start=0.0, stop=2.0, step=0.01, value=1.0, label=p)
-        for p in selected_params.value
+        p: mo.ui.slider(start=0.0, stop=2.0, step=0.01, value=dp[p], label=p)
+        for p in param_list
     })
     plot_nodes = mo.ui.multiselect(
         options=nodes,
@@ -61,14 +50,12 @@ def make_slider_node_widget(mo, nodes, selected_params):
         label="Select state variables to plot"
     )
 
-    return plot_nodes, sliders
+    return param_defaults, plot_nodes, sliders
 
 
 @app.cell(hide_code=True)
-def merge_params(mo, param_list, sliders):
+def merge_params(mo, param_defaults, param_list, sliders):
     # cell: merge parameter values
-    from simulation import param_defaults
-
     merged_param_values = [
         sliders[p].value if p in sliders else param_defaults[p]
         for p in param_list
@@ -98,7 +85,7 @@ def input(mo):
 
 
 @app.cell(hide_code=True)
-def input_plot(light_input, plt, t_vals):
+def input_plot(light_input, mo, plt, t_vals):
     fig0, (ax1) = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
 
 
@@ -110,12 +97,16 @@ def input_plot(light_input, plt, t_vals):
 
     plt.show()
 
-    return
+    plot_input = False
+    input_plot_widget = mo.ui.switch(label="Plot input?")
+
+    return (input_plot_widget,)
 
 
 @app.cell
-def show_widgets(mo, plot_nodes, selected_params, sliders):
-    mo.vstack([selected_params,sliders,plot_nodes])
+def show_widgets():
+    #mo.vstack([selected_params,sliders,plot_nodes])
+
     return
 
 
@@ -126,18 +117,15 @@ def _(eqs):
 
 
 @app.cell
-def _(y0):
-    y0
-    return
-
-
-@app.cell(hide_code=True)
 def simulation(
     egfr_system,
+    input_plot_widget,
     light_input,
     merged_param_values,
+    mo,
     plot_nodes,
     plt,
+    sliders,
     solve_ivp,
     state_vars,
     t_vals,
@@ -146,23 +134,32 @@ def simulation(
     def wrapped_system(t, y):
         return egfr_system(t, y, merged_param_values, light_input)
 
-
     sol = solve_ivp(wrapped_system, (0, 30), y0, t_eval=t_vals)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(8, 5), dpi=120)
     for i, name in enumerate([sv[:-3] for sv in state_vars]):
         if name in plot_nodes.value:
             ax.plot(sol.t, sol.y[i], label=name)
 
+    if input_plot_widget.value:
+        ax.plot(t_vals, [light_input(t) for t in t_vals], label="Input")
+
     ax.set_title("EGFR Pathway Simulation")
     ax.set_xlabel("Time")
     ax.set_ylabel("Concentration")
-    ax.legend()
+    ax.legend(loc=1)
     ax.grid(True)
+
     #mo.ui.plotly(fig)
     #fig.show()
-    plt.show()
+    #plt.show()
 
+    ctrls = mo.accordion({
+        "State Variables to plot":plot_nodes,
+        "Parameter values": sliders,
+        "Plot input":input_plot_widget
+    })
+    mo.hstack([ctrls,fig], widths=[0.3,0.7], gap="1rem")
 
     return
 
@@ -180,7 +177,7 @@ def _(mo):
     The plot right now exhibits one problematic behavior: each subsequent node in the network shows weaker activation, where I'd expect it to exhibit a stronger one (RAS has a very steep activation, whereas RAF, MEK, ERK are subsequently weaker). This one requires checking with literature, as I'm not sure if this is really how it should behave.
 
     ### Resolution idea
-    It's possible that two of the above are connected in a way. If I fit actual data from real cells, maybe the real parameters will also fix the diminishing steepness. 
+    It's possible that two of the above are connected in a way. If I fit actual data from real cells, maybe the real parameters will also fix the diminishing steepness.
     """
     )
     return
