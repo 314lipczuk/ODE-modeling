@@ -80,7 +80,7 @@ def _(initial_cond_defaults, np, state_vars):
 def input(mo):
     mo.md("# Inputs")
     #light_input = lambda t: 10 if 13 < t < 15 else 0
-    light_input = lambda t: 1 if 3 < t <5 else 0.2  
+    light_input = lambda t: 1 if 3 < t < 30 else 0.2  
     return (light_input,)
 
 
@@ -101,13 +101,6 @@ def input_plot(light_input, mo, plt, t_vals):
     input_plot_widget = mo.ui.switch(label="Plot input?")
 
     return (input_plot_widget,)
-
-
-@app.cell
-def show_widgets():
-    #mo.vstack([selected_params,sliders,plot_nodes])
-
-    return
 
 
 @app.cell
@@ -149,10 +142,6 @@ def simulation(
     ax.set_ylabel("Concentration")
     ax.legend(loc=1)
     ax.grid(True)
-
-    #mo.ui.plotly(fig)
-    #fig.show()
-    #plt.show()
 
     ctrls = mo.accordion({
         "State Variables to plot":plot_nodes,

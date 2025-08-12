@@ -1,7 +1,5 @@
 from sympy import symbols, Function, Derivative, Eq, Symbol, lambdify
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.integrate import solve_ivp
 
 param_list = ["K12", "k21", "K21",
 "k34", "K34","knfb","k43","K43",
@@ -40,8 +38,6 @@ base_eqs = [dRASs_dt:= Eq(Derivative(RAS_s, t ),         light * (RAS/(K12+RAS))
 
 # Substitute the 2 variants by v1 and total - v1
 conservation_substitution = {globals()[k]:globals()[f'tot{k}']-globals()[f'{k}_s'] for k in nodes }
-#for e in eqs:
-#    e = e.subs(conservation_substitution)
 eqs = [e.subs(conservation_substitution) for e in base_eqs]
 
 rhs_exprs = [e.rhs for e in eqs]
@@ -155,16 +151,22 @@ y0 = [initial_cond_defaults[n[0:-3]] for n in state_vars]
 t_span = (0, 30)
 t_eval = np.linspace(*t_span, 300)
 
-# Solve
-#sol = solve_ivp(lambda t, y: egfr_system(t, y, param_values, light_input),
-#                t_span, y0, t_eval=t_eval)
+
+"""
+What is the correct structure of this code?
+
+Need:
+    Symbols - have a list of variables that are used within a system. They can be separated into distinct groups:
+    -   Parameters (what we look for when fitting)
+    -   State Variables (what we are modeling)
+    -   Input / Ouput variables (can be part of the above two)
+
+    Equations - relating the above, forming the structure of the computation.
+        Leaving those in the form of sympy-compatible Equalities seems like a good option, as symfit can understand those. 
+
+    Functions for:
+        Fitting :: Model, Data -> Parameters
+        Simulating :: Model, Parameters, Init_Cond -> Data
 
 
-
-
-print(type(eqs[0].lhs.args[0]))
-
-
-
-
-
+"""
