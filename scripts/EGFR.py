@@ -40,24 +40,22 @@ cell_lines = df_plot["cell_line"].unique()
 df_plot.loc[:, "stim_exposure"] = df_plot.loc[:, "stim_exposure"].astype("int")
 
 cell_line = 'EGFR'
-plt.figure(figsize=(6, 3),dpi = 250)
-num_cells = df_plot.query("cell_line == @cell_line")["uid"].nunique()
-
-sns.lineplot(data=df_plot.query("cell_line == @cell_line"), x='frame', y='cnr_norm', hue="stim_exposure", palette="tab10", estimator="median", errorbar=('ci',90))
-handles, labels = plt.gca().get_legend_handles_labels()
-new_labels = []
-for label in labels:
-    exposure_time = int(float(label))
-    num_cells_exposure = df_plot.query("cell_line == @cell_line and stim_exposure == @exposure_time and stim_timestep_str == @STIM_TIMESTEP_TO_PLOT")["uid"].nunique()
-    new_labels.append(f'{int(float(label))} ms (n={num_cells_exposure})')
-plt.legend(handles, new_labels, loc='upper center', bbox_to_anchor=(0.5, -0.20), ncol=3, frameon=False)
-plt.ylabel('norm. ERK-KTR c/n ratio')
-plt.xlabel('time [min]')
-plt.axvline(x=10, color='black', linestyle='--')
-plt.title(f"{cell_line} (n={num_cells})")
-plt.savefig(f"{cell_line}_single_erkktr_norm.svg", bbox_inches='tight')
-plt.show()
-
+#plt.figure(figsize=(6, 3),dpi = 250)
+#num_cells = df_plot.query("cell_line == @cell_line")["uid"].nunique()
+#sns.lineplot(data=df_plot.query("cell_line == @cell_line"), x='frame', y='cnr_norm', hue="stim_exposure", palette="tab10", estimator="median", errorbar=('ci',90))
+#handles, labels = plt.gca().get_legend_handles_labels()
+#new_labels = []
+#for label in labels:
+#    exposure_time = int(float(label))
+#    num_cells_exposure = df_plot.query("cell_line == @cell_line and stim_exposure == @exposure_time and stim_timestep_str == @STIM_TIMESTEP_TO_PLOT")["uid"].nunique()
+#    new_labels.append(f'{int(float(label))} ms (n={num_cells_exposure})')
+#plt.legend(handles, new_labels, loc='upper center', bbox_to_anchor=(0.5, -0.20), ncol=3, frameon=False)
+#plt.ylabel('norm. ERK-KTR c/n ratio')
+#plt.xlabel('time [min]')
+#plt.axvline(x=10, color='black', linestyle='--')
+#plt.title(f"{cell_line} (n={num_cells})")
+#plt.savefig(f"{cell_line}_single_erkktr_norm.svg", bbox_inches='tight')
+#plt.show()
 
 #df_plot[df_plot['cell_line'] == 'EGFR'] # cnr norm, by frame (each frame is 1 minute);
 
@@ -68,7 +66,13 @@ plt.show()
 
 to_model = df_plot[df_plot['cell_line'] == 'EGFR'].groupby(['frame','stim_exposure' ])['cnr_norm'].median().reset_index()
 exposure_types = df_plot[df_plot['cell_line'] == 'EGFR']['stim_exposure'].unique()
-
 # now i can just access each exp type by 
-to_model[to_model['stim_exposure']==200]
 
+to_model[to_model['stim_exposure'] == 200 ]
+
+print('extracted data')
+from fit import build_symfit_odemodel
+from simulation import eqs, active_variants, param_list, light_fn 
+from dill import dump, load
+
+#ode, sv, po = build_symfit_odemodel(eqs, active_variants, param_list, light_fn, include_params=None, exclude_params=None) 

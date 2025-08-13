@@ -40,7 +40,7 @@ def _():
     # Display the rows that are deleted
     deleted_rows = df[df['is_deleted']]
     df
-    return df, plt, sns
+    return df, np, plt, sns
 
 
 @app.cell
@@ -84,11 +84,18 @@ def _(df, plt, sns):
 
 
 @app.cell
+def _(df):
+    df[df['stim']]['frame'].unique()
+    return
+
+
+@app.cell
 def _(df_plot):
     to_model = df_plot[df_plot['cell_line'] == 'EGFR'].groupby(['frame', 'stim_exposure'])['cnr_norm'].median().reset_index()
 
-    to_model[to_model['stim_exposure']==200]
-    return
+    md1 = to_model[to_model['stim_exposure']==200]
+    md1
+    return (md1,)
 
 
 @app.cell
@@ -103,6 +110,72 @@ def _():
     return (mo,)
 
 
+@app.cell
+def _():
+    from symfit import Fit
+    #from EGFR import to_model
+    from simulation import eqs, t, initial_cond_defaults, nodes
+    from fit import build_symfit_odemodel
+    import sympy as sp
+    return Fit, build_symfit_odemodel, eqs, initial_cond_defaults, sp, t
+
+
+@app.cell
+def _(sp, t):
+    def box_pulse(t, start, end):
+        H = sp.Heaviside
+        return H(t - start) - H(t - end)  # 1 on [start, end), else 0
+
+    frame_width = 1.0       # or your dt per frame
+    t_start = 10.0 * frame_width
+    t_end   = t_start + frame_width
+
+    light_expr = box_pulse(t, t_start, t_end)
+
+    return (light_expr,)
+
+
+@app.cell
+def _(build_symfit_odemodel, eqs, initial_cond_defaults, light_expr, sp, t):
+    init = {k:v for (k,v) in initial_cond_defaults.items() if k.endswith('_s') }
+    param_bounds = {
+    }
+    print('initial cond', init )
+    ode, sv, po = build_symfit_odemodel(eqs, t, init,known_subs={sp.Function("light")(t):light_expr} )
+
+    return (ode,)
+
+
+@app.cell
+def _(np):
+    tn = np.linspace(start=1,stop=59, num=59)
+    tn
+    return (tn,)
+
+
+@app.cell
+def _(Fit, initial_cond_defaults, md1, ode, tn):
+
+    known_data = {
+        't':md1['frame'],
+        'KTR_s' : md1['cnr_norm']
+    }
+    data = { k:known_data.get(k) for k in initial_cond_defaults.keys() if k.endswith('_s')}
+
+    print(data)
+    fit = Fit(ode, **data, t=tn)
+    fit
+
+    return (fit,)
+
+
+@app.cell
+def _(fit):
+
+    e = fit.execute()
+    return
+
+
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
@@ -110,7 +183,6 @@ def _(mo):
     # Fitting
     At first I want to fit my model to the average for each stimulation time.
     So, I'm interested in normalized cnr for EGFR as my y. Let's extract that first?
-
     """
     )
     return
