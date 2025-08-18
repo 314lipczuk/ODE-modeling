@@ -100,7 +100,7 @@ def _(df_plot):
 
 @app.cell
 def _(df_plot):
-    df_plot[df_plot['cell_line'] == 'EGFR']['stim_exposure'].unique()
+    exp_types = df_plot[df_plot['cell_line'] == 'EGFR']['stim_exposure'].unique()
     return
 
 
@@ -157,8 +157,8 @@ def _(np):
 def _(Fit, initial_cond_defaults, md1, ode, tn):
 
     known_data = {
-        't':md1['frame'],
-        'KTR_s' : md1['cnr_norm']
+        't':md1['frame'].to_numpy(dtype=float),
+        'KTR_s' : md1['cnr_norm'].to_numpy(dtype=float)
     }
     data = { k:known_data.get(k) for k in initial_cond_defaults.keys() if k.endswith('_s')}
 
@@ -173,6 +173,21 @@ def _(Fit, initial_cond_defaults, md1, ode, tn):
 def _(fit):
 
     e = fit.execute()
+    return (e,)
+
+
+@app.cell
+def _(e):
+    dict(e.params)
+    return
+
+
+@app.cell
+def _(e):
+    import json
+    with open('egfr_fit_transient_1_params.json', 'w') as f:
+        json.dump(dict(e.params), f)
+    
     return
 
 

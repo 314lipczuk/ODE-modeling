@@ -37,11 +37,23 @@ def _():
 
 
 @app.cell
-def make_slider_node_widget(mo, nodes, param_list):
+def _():
     from simulation import param_defaults
-    dp = param_defaults.copy()
+    import json
+
+
+    #dp = param_defaults.copy()
+    PARAM_FILE = 'egfr_fit_transient_1_params.json'
+    with open(PARAM_FILE, 'r') as f:
+        dp = json.load(f)
+    dp
+    return dp, param_defaults
+
+
+@app.cell
+def make_slider_node_widget(dp, mo, nodes, param_list):
     sliders = mo.ui.dictionary({
-        p: mo.ui.slider(start=0.0, stop=2.0, step=0.01, value=dp[p], label=p)
+        p: mo.ui.slider(start=0.0, stop=4.0, step=0.01, value=dp[p], label=p)
         for p in param_list
     })
     plot_nodes = mo.ui.multiselect(
@@ -50,7 +62,7 @@ def make_slider_node_widget(mo, nodes, param_list):
         label="Select state variables to plot"
     )
 
-    return param_defaults, plot_nodes, sliders
+    return plot_nodes, sliders
 
 
 @app.cell(hide_code=True)
@@ -80,7 +92,7 @@ def _(initial_cond_defaults, np, state_vars):
 def input(mo):
     mo.md("# Inputs")
     #light_input = lambda t: 10 if 13 < t < 15 else 0
-    light_input = lambda t: 1 if 3 < t < 30 else 0.2  
+    light_input = lambda t: 300 if 10<t<11 else 0  
     return (light_input,)
 
 
@@ -150,25 +162,6 @@ def simulation(
     })
     mo.hstack([ctrls,fig], widths=[0.3,0.7], gap="1rem")
 
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
-    # General things that need doing:
-    ### Parameter estimation
-    Current values are semi-random, with little thought put into them being instructive. It would be nice if i could assign units to them as sanity check.
-    I need to do also find a library that will do fitting of these coefficients based on data I have.
-
-    ### Weird behavior of plot
-    The plot right now exhibits one problematic behavior: each subsequent node in the network shows weaker activation, where I'd expect it to exhibit a stronger one (RAS has a very steep activation, whereas RAF, MEK, ERK are subsequently weaker). This one requires checking with literature, as I'm not sure if this is really how it should behave.
-
-    ### Resolution idea
-    It's possible that two of the above are connected in a way. If I fit actual data from real cells, maybe the real parameters will also fix the diminishing steepness.
-    """
-    )
     return
 
 

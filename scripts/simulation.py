@@ -8,7 +8,7 @@ param_list = ["K12", "k21", "K21",
 "k910","K910",
 "s12", "s21",
 "f12", "F12", "f21", "F21",
-"ktr_init", "rho"]
+]
 
 nodes = ["RAS", "RAF", "MEK", "ERK", "NFB", "KTR"]
 param_list.extend([f'tot{node}' for node in nodes])
@@ -83,8 +83,8 @@ light_input = lambda t: 1.0
 
 # Taken from github
 initial_cond_defaults = {
-    "RAS":0.9,
-    "RAS_s":0.1,
+    "RAS":0.99,
+    "RAS_s":0.01,
     "RAF":0.99,
     "RAF_s":0.01,
     "MEK":0.99,
