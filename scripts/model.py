@@ -1,4 +1,4 @@
-import numpy as no
+import numpy as np
 
 from sympy import Symbol, Function, Eq, Derivative, lambdify, Expr
 from sympy.core.relational import Equality
@@ -50,28 +50,25 @@ class Model:
 
         free_vars = set()
         for eq in self.eqs: free_vars.update(eq.rhs.free_symbols)
-        active_states = set(self.states).intersection(free_vars)
-        print('fv',free_vars,'as', active_states)
+        # Find which state names have their corresponding symbols in free_vars
+        active_states = []
+        for state_name in self.states:
+            if self.symbols[state_name] in free_vars:
+                active_states.append(state_name)
         # ^ cannot just use self.states from the start cause the 
         #   self.transform() could have reduced number of parameters.
         
-        states = [self.symbols[s] for s in self.states if s in active_states]
+        states = [self.symbols[s] for s in active_states]
 
-        print('as',active_states,'states:',states)
-        assert False, 'Things are fuked up here, boss'
         parameters = [self.symbols[p] for p in self.parameters]
 
         arg_list = (t, *states, *parameters, self.symbols[self.t_dep])
-        numerical_funcs = [lambdify( arg_list, eq.rhs, modules=module )
+        numerical_funcs = [lambdify(arg_list, eq.rhs, modules=module )
                            for eq in self.eqs ]
 
         def system(t, y, params, t_func, t_args):
             res = t_func(t, *t_args)
             args = [t, *y, *params, res]
-            print('t', t)
-            print('y::',len(y),' -> ',y )
-            print('params::',len(params),' -> ',params )
-            print('t -> ',t )
             return [f(*args) for f in numerical_funcs]
             
         return system
@@ -154,7 +151,13 @@ syst = m._make_numerical()
 from scipy.integrate import solve_ivp
 import numpy as np
 
+def tfunc(t, tp=None):
+    match tp:
+        case 'a': return t
+        case 'b': return 1
+        case _: return 2
+
 sol = solve_ivp(
-    lambda t,y:syst(t,y, np.ones(len(param_list)), lambda t:1, []),
+    lambda t,y:syst(t,y, np.ones(len(param_list)), tfunc, []),
     [0,3], np.array([0.1,0.1,0.1,0.1,0.1])
 )
