@@ -87,6 +87,10 @@ class Model:
 
     def fit(self, dataframe, y0, p0, t_args, params_to_fit, params_to_fix): 
         """
+        TODO: simplify, rethink: 
+            - do i really need both p0 and params_to_fit?   
+            - validity of params_to_fix when i have transforms
+
         Fit model parameters to experimental data.
         
         Parameters:

@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+
 from model import Model, EquationDescription
 from typing import List
 import pandas as pd
@@ -72,7 +76,17 @@ m.transform(
     ])
 
 
-data = DATA_PATH / "data_transient.csv"
+data = DATA_PATH / "data_transient_v2.csv"
 df = pd.read_csv(data)
 
 y0 = [0.05] * 5
+import json
+with open(DATA_PATH / 'egfr_fit_transient_1_params.json', 'r') as f:
+  p0 = json.load(f)
+
+if __name__ == '__main__':
+  from datetime import datetime
+  print(datetime.now(),'starting fitting....'  )
+  m.fit(df,y0,p0, None,p0, None)
+  m.save_results()
+  print('done at: ', datetime.now() )
