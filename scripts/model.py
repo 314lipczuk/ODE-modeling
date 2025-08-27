@@ -76,20 +76,37 @@ class Model:
         return system
 
     def fit(self, dataframe, y0, p0, t_args, params_to_fit, params_to_fix): 
-        if params_to_fix is None: params_to_fix = {}
+        """
+        Fit model parameters to experimental data.
         
-        # Create parameter name to index mapping from model parameters
-        param_name_to_index = {param: i for i, param in enumerate(self.parameters)}
+        Parameters:
+        -----------
+        dataframe : pd.DataFrame
+            Must contain columns:
+            - 'time': float, time points in seconds
+            - 'y': float, observed values (e.g., KTR levels)  
+            - 'group': str/int, experiment/cell identifier for grouping
+        y0 : array_like
+            Initial conditions for the ODE system
+        p0 : array_like  
+            Initial parameter values (fallback for unfitted parameters)
+        t_args : list
+            Arguments to pass to the time-dependent function (e.g., light intensity)
+        params_to_fit : dict
+            {param_name: initial_guess} for parameters to optimize
+        params_to_fix : dict, optional
+            {param_name: fixed_value} for parameters to keep constant
+        """
+        if params_to_fix is None: 
+            params_to_fix = {}
         
-        # Prepare dataframe
-        df_processed = dataframe.copy()
-        df_processed['time'] = (df_processed['frame'] - 1) * 60.0  # Convert frame to seconds
-        df_processed['pulse_duration_ms'] = df_processed['stim_exposure']  # Stimulation duration
-        df_processed['y'] = df_processed['cnr_norm']  
-        df_processed['start_time_ms'] = (10 - 1) * 60 * 1000  # Frame 10 = 540 seconds = 540000 ms
+        # Validate input dataframe
+        required_cols = {'time', 'y', 'group'}
+        if not required_cols.issubset(dataframe.columns):
+            missing = required_cols - set(dataframe.columns)
+            raise ValueError(f"DataFrame missing required columns: {missing}")
         
         param_names = list(params_to_fit.keys())
-        param_indices = [param_name_to_index[name] for name in param_names]
         
         # Get the numerical system
         system = self._make_numerical()
@@ -112,33 +129,32 @@ class Model:
             
             total_loss = 0.0
             
-            # Group by unique experiments (stim_exposure, uid combinations)
-            unique_experiments = df_processed[['pulse_duration_ms', 'uid']].drop_duplicates()
+            # Process each unique group/experiment
+            unique_groups = dataframe['group'].unique()
             
-            for _, exp_row in unique_experiments.iterrows():
-                exp_data = df_processed[
-                    (df_processed['pulse_duration_ms'] == exp_row['pulse_duration_ms']) & 
-                    (df_processed['uid'] == exp_row['uid'])
-                ].sort_values('time')
+            for group_id in unique_groups:
+                group_data = dataframe[dataframe['group'] == group_id].sort_values('time')
                 
-                times = exp_data['time'].values
-                real_data = exp_data['y'].values
+                times = group_data['time'].values
+                observed_data = group_data['y'].values
                 
                 try:
                     sol = solve_ivp(
-                        lambda t, y: system(t, y, p_full, self.t_func, self.t_dep),
+                        lambda t, y: system(t, y, p_full, self.t_func, t_args),
                         [times[0], times[-1]], y0, 
                         t_eval=times, method='LSODA', rtol=1e-8
                     )
                     
-                    assert sol.success, "sol.success should be True"
-                    # Use the last state as the observable (in simple model: y, in EGFR: KTR_s)
-                    obs_pred = sol.y[-1]  # Last state variable
-                    loss = np.sum((obs_pred - real_data)**2)
-                    total_loss += loss
+                    if sol.success:
+                        # Use the last state as the observable (in simple model: y, in EGFR: KTR_s)
+                        predicted_data = sol.y[-1]  # Last state variable
+                        loss = np.sum((predicted_data - observed_data)**2)
+                        total_loss += loss
+                    else:
+                        return 1e10
                 
                 except Exception as e:
-                    print(f"Error solving ODE: {e}")
+                    print(f"Error solving ODE for group {group_id}: {e}")
                     return 1e10
             
             return total_loss
@@ -162,7 +178,7 @@ class Model:
             'loss': result.fun,
             'success': result.success,
             'message': result.message,
-            'n_experiments': len(df_processed[['pulse_duration_ms', 'uid']].drop_duplicates())
+            'n_experiments': len(dataframe['group'].unique())
         }
         
         return self.fit_result
