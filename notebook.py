@@ -23,6 +23,17 @@ def _(DATA_PATH, pd):
     return df, light_func, m, y0
 
 
+@app.cell(disabled=True)
+def _():
+    #df = pd.read_csv(DATA_PATH / 'data_transient.csv', index_col=False)
+    #df['y'] = df['cnr_norm']
+    #df['time'] = df['frame']
+    #df['group'] = df['uid'].astype('str') + df['stim_exposure'].astype('str')
+    #df.drop(axis=1, columns=df.columns.difference(['y','time','group']), inplace=True)
+    #df.to_csv(DATA_PATH / 'data_transient_v2.csv', index=False)
+    return
+
+
 @app.cell
 def _(df):
     df
@@ -65,8 +76,9 @@ def _(DATA_PATH, param_widget):
 
 @app.cell
 def _(m):
+    system = m.make_numerical()
     m.eqs
-    return
+    return (system,)
 
 
 @app.cell
@@ -76,7 +88,7 @@ def make_slider_node_widget(dp, m, mo):
         for p in m.parameters
     })
     plot_nodes = mo.ui.multiselect(
-        options=m.states,
+        options=m.active_states,
         value=["ERK_s"],
         label="Select state variables to plot"
     )
@@ -123,35 +135,42 @@ def input_plot(light_func, mo, np, plt):
 
 
 @app.cell
-def _(dp, m, np):
+def _():
+    return
+
+
+@app.cell
+def _(m, np, sliders):
 
     p_full = np.zeros(len(m.parameters))
     param_names = m.parameters
     # Start with provided p0 values
-    unmet_params = {}
     for iP, param_name in enumerate(m.parameters):
-        if param_name in dp.keys():
-            p_full[iP] = dp[param_name]
-        else:
-            unmet_params.update(param_name)
-    print('Supplement these:', unmet_params) if len(unmet_params) > 0 else print('All params supplied')
+        p_full[iP] = sliders[param_name].value
 
     return (p_full,)
 
 
 @app.cell
+def _(m):
+    m.active_states
+    return
+
+
+@app.cell
 def simulation(
+    df,
     input_plot_widget,
     light_func,
     m,
     mo,
-    original,
     p_full,
     plot_nodes,
     plot_original_widget,
     plt,
     sliders,
     solve_ivp,
+    system,
     t_vals,
     y0,
 ):
@@ -161,15 +180,14 @@ def simulation(
     #     return egfr_system(t, y, merged_param_values, light_input)
 
 
-    system = m.make_numerical()
     sol = solve_ivp(
         lambda t, y: system(t, y, p_full, light_func, {'group':50}),
-        (1, 59), y0, method='LSODA', rtol=1e-8)
+        (1, 59), y0, rtol=1e-4, atol=1e-7, t_eval=t_vals )
 
     fig, ax = plt.subplots(figsize=(8, 5), dpi=120)
 
     if plot_original_widget.value:
-        sns.lineplot(data=original, x='frame', y='cnr_norm', estimator="median")
+        sns.lineplot(data=df, x='frame', y='cnr_norm', estimator="median")
 
     for i, name in enumerate(m.active_states):
         if name in plot_nodes.value:

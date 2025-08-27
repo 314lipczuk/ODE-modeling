@@ -42,13 +42,27 @@ def flatten_extend(matrix):
         flat_list.extend(row)
     return flat_list
 
-nodes = flatten_extend([ [f'{node}_s',node ] for node in  ["RAS", "RAF", "MEK", "ERK", "NFB"]] )
+nodes = flatten_extend([ [f'{node}_s',node ] for node in  ["RAS", "RAF", "MEK",  "NFB", "ERK"]] )
+
+def light_func(t, rest=None):
+  # Smooth transitions to avoid solver issues
+  import numpy as np
+  if t <= 9:
+    return 0
+  elif t <= 9.1:  # Smooth rise
+    return (t - 9) / 0.1
+  elif t <= 10.9:  # Plateau
+    return 1
+  elif t <= 11:   # Smooth fall
+    return (11 - t) / 0.1
+  else:
+    return 0
 
 m = Model(name = 'simple_egfr_transient',
           parameters = param_list,
           states = nodes,
           model_definition = model_eqs,
-          t_func = lambda t:t,
+          t_func = light_func,
           t_dep='light'
           )
 m.transform(
@@ -57,10 +71,8 @@ m.transform(
         {k:(1 - Symbol(f'{k}_s')) for k in nodes if not k.endswith('_s')}
     ])
 
-def light_func(t, rest=None):
-  return 1 if 9 < t < 11 else 0
 
 data = DATA_PATH / "data_transient.csv"
 df = pd.read_csv(data)
 
-y0 = [0.01] * 5
+y0 = [0.05] * 5
