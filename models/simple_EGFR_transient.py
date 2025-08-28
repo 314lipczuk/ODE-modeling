@@ -50,19 +50,27 @@ nodes = flatten_extend([ [f'{node}_s',node ] for node in  ["RAS", "RAF", "MEK", 
 
 def light_func(t, rest=None):
   # Smooth transitions to avoid solver issues
+  modifier = float(rest['group'])
+  base_intensity = 1.0        # Base light intensity
+  max_additional = 1.0        # Maximum additional intensity
+  saturation_point = 200.0    # Modifier value where we reach ~50% of max_additional
+  
+  # Sigmoid scaling: smooth saturation
+  intensity_scale = base_intensity + max_additional * modifier / (modifier + saturation_point)
+
   import numpy as np
   if t <= 9:
     return 0
   elif t <= 9.1:  # Smooth rise
-    return (t - 9) / 0.1
+    return intensity_scale * (t - 9) / 0.1
   elif t <= 10.9:  # Plateau
-    return 1
+    return intensity_scale
   elif t <= 11:   # Smooth fall
-    return (11 - t) / 0.1
+    return intensity_scale * (11 - t) / 0.1
   else:
     return 0
 
-m = Model(name = 'simple_egfr_transient',
+m = Model(name = 'egfr_transient_pulse_median',
           parameters = param_list,
           states = nodes,
           model_definition = model_eqs,
@@ -76,14 +84,21 @@ m.transform(
     ])
 
 
-data = DATA_PATH / "data_transient_v2.csv"
-df = pd.read_csv(data)
+#data = DATA_PATH / "data_transient_v2.csv"
+#df = pd.read_csv(data)
+df = pd.read_csv(DATA_PATH / 'data_transient.csv', index_col=False)
+df['y'] = df['cnr_norm']
+df['time'] = df['frame']
+df['group'] = df['stim_exposure'].astype('str')
+df.drop(axis=1, columns=df.columns.difference(['y','time','group']), inplace=True)
+df.to_csv(DATA_PATH / 'data_transient_v2.csv', index=False)
+df = df.groupby(['group','time']).median('y')
+df.reset_index(inplace=True)
 
 y0 = [0.05] * 5
 import json
 with open(DATA_PATH / 'egfr_fit_transient_1_params.json', 'r') as f:
   p0 = json.load(f)
-
 if __name__ == '__main__':
   from datetime import datetime
   print(datetime.now(),'starting fitting....'  )

@@ -21,7 +21,6 @@ TODO:   Think about time dilation, as a lot of the signalling phenomena happen o
         our time resolution is 1 frame (1 second)). 
         On the second thought, that should probably happen outside of this function,
         maybe on the level of preparing the dataframe? Just a helper func or sth?
-
 '''
 
 
@@ -209,6 +208,8 @@ class Model:
         assert self.fit_result is not None, "To save results you gotta have results."
         time = datetime.now().strftime('%d-%m-%Y_%H:%M:%S')
         path = RESULTS_PATH / f'{self.name}_{time}.json'
-        with open(path, 'w') as f: json.dump(self.fit_result, f)
+        from pprint import pprint
+        pprint(self.fit_result)
+        with open(path, 'w') as f: json.dump(self.fit_result['fitted_params'], f)
 
             

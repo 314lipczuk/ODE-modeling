@@ -1,4 +1,6 @@
 __marimo__
 venv
 __pycache__
+.claude
+data
 

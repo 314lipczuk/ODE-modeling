@@ -11,16 +11,16 @@ def _():
     import numpy as np
     import pandas as pd
     import matplotlib.pyplot as plt
-    from utils.utils import DATA_PATH, MODELS_PATH
+    from utils.utils import DATA_PATH, MODELS_PATH, RESULTS_PATH
     mo.md("# EGFR Pathway Simulation")
-    return DATA_PATH, mo, np, pd, plt, solve_ivp
+    return DATA_PATH, RESULTS_PATH, mo, np, pd, plt, solve_ivp
 
 
 @app.cell
 def _(DATA_PATH, pd):
-    from models.simple_EGFR_transient import m, y0, light_func
+    from models.simple_EGFR_transient import m, y0 as models_y0, light_func, nodes as param_list, nodes as states 
     df = pd.read_csv(DATA_PATH / 'data_transient_v2.csv', index_col=False)
-    return df, light_func, m, y0
+    return df, light_func, m, states
 
 
 @app.cell(disabled=True)
@@ -36,7 +36,8 @@ def _():
 
 @app.cell
 def _(df):
-    df
+    dfy = df.groupby(['group','time']).mean('y')
+    dfy
     return
 
 
@@ -48,30 +49,43 @@ def _(mo):
 
 
 @app.cell
-def _(DATA_PATH, mo):
+def _(RESULTS_PATH, mo):
     #def param_reader():
     import os
     import pathlib
-    candidate_params = list(reversed([c for c in os.listdir(DATA_PATH) if c.endswith('.json')]))
+    candidate_params = list(reversed([c for c in os.listdir(RESULTS_PATH) if c.endswith('.json')]))
     param_widget = mo.ui.radio(options=candidate_params, value=candidate_params[0])
     param_widget
     return (param_widget,)
 
 
 @app.cell
-def _(DATA_PATH, param_widget):
+def _(RESULTS_PATH, m, param_widget):
     #from simulation import param_defaults
     import json
 
 
     #dp = param_defaults.copy()
-    with open(DATA_PATH / param_widget.value, 'r') as f:
+    with open(RESULTS_PATH/ param_widget.value, 'r') as f:
         dp = json.load(f)
         test = dp.get('K12')
-        if test is None:
+        test2 = dp.get('fitted_params')
+        if test is not None:
+            p = dp
+            dp = {k: p[k] for k in m.parameters} 
+        if test is None and test2 is None:
             dp = dp.get("params")
+        if test is None and test2 is not None:
+            p = dp.get('fitted_params')
+            dp = {k: p[k] for k in m.parameters} 
     dp
     return (dp,)
+
+
+@app.cell
+def _(m, parameter_list, states):
+    m.model_definition_f(parameter_list, states)['eqations']
+    return
 
 
 @app.cell
@@ -158,6 +172,12 @@ def _(m):
 
 
 @app.cell
+def _():
+    y0 = [0.01, 0.01, 0.01, 0.01, 0.01]
+    return (y0,)
+
+
+@app.cell
 def simulation(
     df,
     input_plot_widget,
@@ -183,7 +203,7 @@ def simulation(
     sol = solve_ivp(
         lambda t, y: system(t, y, p_full, light_func, {'group':50}),
         (1, 59), y0, rtol=1e-4, atol=1e-7, t_eval=t_vals )
-
+    print(sol)
     fig, ax = plt.subplots(figsize=(8, 5), dpi=120)
 
     if plot_original_widget.value:
@@ -194,7 +214,7 @@ def simulation(
             ax.plot(sol.t, sol.y[i], label=name)
 
     if input_plot_widget.value:
-        ax.plot(t_vals, [light_func(t) for t in t_vals], label="Input")
+        ax.plot(t_vals, [light_func(t, {'group':50}) for t in t_vals], label="Input")
 
     ax.set_title("EGFR Pathway Simulation")
     ax.set_xlabel("Time")
@@ -209,6 +229,39 @@ def simulation(
     })
     mo.hstack([ctrls,fig], widths=[0.3,0.7], gap="1rem")
 
+    return (sol,)
+
+
+@app.cell
+def _():
+    return
+
+
+@app.cell
+def _(sol):
+    sol.t.shape
+
+    return
+
+
+@app.cell
+def _(pd, sol):
+    def sol_to_df(sol, state_names):
+        """Convert solve_ivp solution to wide dataframe"""
+        # Create dataframe with time column
+        df = pd.DataFrame({'time': sol.t})
+        print(df.shape) 
+        # Add each state as a column
+        for i, state in enumerate(state_names):
+            df[state] = sol.y[i,:]
+
+        return df
+
+
+    # Usage:
+    state_names = ['RAS_s', 'RAF_s', 'MEK_s',  'NFB_s', 'ERK_s']
+    df_sol = sol_to_df(sol, state_names)
+    df_sol
     return
 
 
