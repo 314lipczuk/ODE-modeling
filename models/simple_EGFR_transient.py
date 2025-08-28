@@ -72,7 +72,7 @@ m = Model(name = 'simple_egfr_transient',
 m.transform(
     [
         # change f.ex RAS into (1-RAS_s), for all states
-        {k:(1 - Symbol(f'{k}_s')) for k in nodes if not k.endswith('_s')}
+        {k:(2 - Symbol(f'{k}_s')) for k in nodes if not k.endswith('_s')}
     ])
 
 
