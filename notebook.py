@@ -20,7 +20,7 @@ def _():
 def _(DATA_PATH, pd):
     from models.simple_EGFR_transient import m, y0 as models_y0, light_func, nodes as param_list, nodes as states 
     df = pd.read_csv(DATA_PATH / 'data_transient_v2.csv', index_col=False)
-    return df, light_func, m, states
+    return df, light_func, m
 
 
 @app.cell(disabled=True)
@@ -83,12 +83,6 @@ def _(RESULTS_PATH, m, param_widget):
 
 
 @app.cell
-def _(m, parameter_list, states):
-    m.model_definition_f(parameter_list, states)['eqations']
-    return
-
-
-@app.cell
 def _(m):
     system = m.make_numerical()
     m.eqs
@@ -126,7 +120,12 @@ def merge_params(m, mo, param_defaults, sliders):
 
 @app.cell
 def input(mo):
-    mo.md("""# Inputs""")
+    mo.md(
+        """
+    # Inputs
+    # $$\\frac{dy}{dx} = ...$$
+    """
+    )
     return
 
 

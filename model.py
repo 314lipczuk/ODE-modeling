@@ -23,7 +23,6 @@ TODO:   Think about time dilation, as a lot of the signalling phenomena happen o
         maybe on the level of preparing the dataframe? Just a helper func or sth?
 '''
 
-
 class Model:
     name = ''
     params = []    
@@ -165,7 +164,7 @@ class Model:
                     )
                     
                     if sol.success:
-                        # Use the last state as the observable (in simple model: y, in EGFR: KTR_s)
+                        # Use the last state as the observable (in simple model: y, in EGFR: KTR_s) update: ERK now
                         predicted_data = sol.y[-1]  # Last state variable
                         loss = np.sum((predicted_data - observed_data)**2)
                         total_loss += loss
