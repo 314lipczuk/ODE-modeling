@@ -109,11 +109,13 @@ def _(mo):
     ## Making the Complex Tractable
 
     **Spatial Homogeneity:**
+
     - Perfect mixing assumption (well-mixed system)
     - No spatial gradients considered
     - Representative of bulk cellular measurements
 
     **Conserved Moieties:**
+
     - Total enzyme concentrations constant
     - Mass conservation constraints applied
     - Reduced parameter space through transformation
@@ -176,21 +178,25 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-    # Ordinary Differential Equations
-    ## Solving: Analytical vs Numerical
+    ### Ordinary Differential Equations: Fitting
+    Given ODE system and a set of experimental data describing one or more of our state variables, we can try to optimize our model parameters, in such a way to minimize difference between our simulation and observations.
+    $$fit = f(model, observations) \rightarrow parameters$
     """
     )
     return
 
 
 @app.cell
-def _(mo):
-    mo.md(
-        r"""
-    # Ordinary Differential Equations
-    ## Fitting
-    """
-    )
+def _(df, dp, m, mo):
+    mo.vstack([
+        mo.md('### Fitting'),
+        mo.hstack([
+            mo.vstack([mo.md('Model'),m.eqs], align='center'),
+            mo.md('# +'),
+            mo.vstack([mo.md('Data'),mo.ui.table(data=df.head())], align='center'),
+            mo.md('# $\\rightarrow$'), 
+            mo.vstack([mo.md('Parameters'),dp], align='center')
+        ], justify='center', align='center')], justify='center', align='center')
     return
 
 

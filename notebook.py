@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.14.13"
+__generated_with = "0.15.2"
 app = marimo.App(width="medium")
 
 
@@ -17,9 +17,14 @@ def _():
 
 
 @app.cell
+def _():
+    return
+
+
+@app.cell
 def _(DATA_PATH, pd):
     from models.simple_EGFR_transient import m, y0 as models_y0, light_func, nodes as param_list, nodes as states 
-    df = pd.read_csv(DATA_PATH / 'data_transient_v2.csv', index_col=False)
+    df = pd.read_csv(DATA_PATH / 'data_transient_v3.csv', index_col=False)
     return df, light_func, m
 
 
@@ -31,6 +36,19 @@ def _():
     #df['group'] = df['uid'].astype('str') + df['stim_exposure'].astype('str')
     #df.drop(axis=1, columns=df.columns.difference(['y','time','group']), inplace=True)
     #df.to_csv(DATA_PATH / 'data_transient_v2.csv', index=False)
+    return
+
+
+@app.cell
+def _(DATA_PATH, pd):
+    df1 = pd.read_csv(DATA_PATH / 'data_transient_v3.csv', index_col=False)
+    df1
+    return (df1,)
+
+
+@app.cell
+def _(df1):
+    df1[df1['group']==500].groupby('time').median('y')
     return
 
 
@@ -100,7 +118,6 @@ def make_slider_node_widget(dp, m, mo):
         value=["ERK_s"],
         label="Select state variables to plot"
     )
-
     return plot_nodes, sliders
 
 
@@ -113,8 +130,6 @@ def merge_params(m, mo, param_defaults, sliders):
     ]
     p_tbl = mo.ui.table(data=dict(zip(m.parameters, merged_param_values)))
     p_tbl
-
-
     return
 
 
@@ -143,7 +158,6 @@ def input_plot(light_func, mo, np, plt):
 
     plot_input = False
     input_plot_widget = mo.ui.switch(label="Plot input?")
-
     return input_plot_widget, t_vals
 
 
@@ -160,7 +174,6 @@ def _(m, np, sliders):
     # Start with provided p0 values
     for iP, param_name in enumerate(m.parameters):
         p_full[iP] = sliders[param_name].value
-
     return (p_full,)
 
 
@@ -174,6 +187,12 @@ def _(m):
 def _():
     y0 = [0.01, 0.01, 0.01, 0.01, 0.01]
     return (y0,)
+
+
+@app.cell
+def _(df1, plt):
+    plt.plot(df1[df1['group']==200]['time'], df1[df1['group']==200]['y'])
+    return
 
 
 @app.cell
@@ -206,7 +225,7 @@ def simulation(
     fig, ax = plt.subplots(figsize=(8, 5), dpi=120)
 
     if plot_original_widget.value:
-        sns.lineplot(data=df, x='frame', y='cnr_norm', estimator="median")
+        sns.lineplot(data=df, x='time', y='y', estimator="median")
 
     for i, name in enumerate(m.active_states):
         if name in plot_nodes.value:
@@ -227,7 +246,6 @@ def simulation(
         "Others":[input_plot_widget, plot_original_widget]
     })
     mo.hstack([ctrls,fig], widths=[0.3,0.7], gap="1rem")
-
     return (sol,)
 
 
@@ -239,7 +257,6 @@ def _():
 @app.cell
 def _(sol):
     sol.t.shape
-
     return
 
 

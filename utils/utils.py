@@ -1,4 +1,5 @@
 from pathlib import Path
+import pandas as pd
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 DATA_PATH = PROJECT_ROOT / 'data'
@@ -25,6 +26,52 @@ def get_results_file(filename):
 def get_model_file(filename):
     """Get path to a file in the models directory"""
     return MODELS_PATH / filename
+
+def prep_from_parquet(file:str, save_as=None):
+    assert str(file).endswith('.parquet')
+    assert (save_as is None) or save_as.endswith('.csv')
+
+    df = pd.read_parquet(file)
+    df["cnr"] = df["mean_intensity_C1_ring"] / df["mean_intensity_C1_nuc"]
+    df["uid"] = df["fov"].astype("string") + "_" + df["particle"].astype("string")
+    df['cell_id'] = df['cell_line'].astype(str) + '_' + df['stim_exposure'].astype(str) + 'ms_' + df['uid'].astype(str)
+    df["frame"] = df["timestep"]
+
+    frame_counts = df["uid"].value_counts()
+    threshold = 0.9 * frame_counts.max()
+
+    valid_uids = frame_counts[frame_counts >= threshold].index
+    df = df[df["uid"].isin(valid_uids)]
+
+    NORM_UNTIL_TIMEPOINT = 10
+    mean_cnr_first_four_frames = df[df['frame'] < NORM_UNTIL_TIMEPOINT].groupby('uid')['cnr'].mean()
+    df['cnr_norm'] = df.apply(lambda row: row['cnr'] / mean_cnr_first_four_frames[row['uid']], axis=1)
+    df["stim_timestep_str"] = df["stim_timestep"].apply(str) 
+    # Compute frame-to-frame differences
+    df['diff'] = df.groupby('uid')['cnr'].diff().abs()
+    # Drop first frame per UID (NaN in diff)
+    df = df.dropna(subset=['diff'])
+    # Compute mean absolute difference per UID
+    df['mean_diff'] = df.groupby('uid')['diff'].transform('mean')
+    # Define a threshold (e.g., remove top 0.02% fluctuating cells)
+    threshold = df['mean_diff'].quantile(0.998)
+    df = df[df['mean_diff'] < threshold]
+    df = df[df['cell_line'] == 'EGFR']
+
+    # get fraction from ratio, normalize, and assign to y
+    frac = df['cnr_norm'] / (df['cnr_norm'] + 1)
+    df['y'] = (frac - frac.min()) / (frac.max() - frac.min())
+
+    df['time'] = df['frame']
+    df['group'] = df['stim_exposure'].astype('str')
+    df.drop(axis=1, columns=df.columns.difference(['y','time','group']), inplace=True)
+
+    if save_as is not None: df.to_csv(DATA_PATH / save_as, index=False)
+
+    # Further, potentially, if we're doing grouping by stim type
+    # df = df.groupby(['group','time']).median('y')
+    # df.reset_index(inplace=True)
+    return df
 
 # Print paths for debugging (can be removed later)
 if __name__ == "__main__":

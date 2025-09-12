@@ -11,9 +11,10 @@ from utils.utils import RESULTS_PATH
 import json
 
 class EquationDescription(TypedDict):
-    eqations:List[Equality]
+    equations:List[Equality]
     constraints: NotRequired[List[Equality]]
     symbols:NotRequired[List[Symbol]]
+    base_equations: NotRequired[List[Equality]]
 
 '''
 TODO:   Think about time dilation, as a lot of the signalling phenomena happen on timescale 
@@ -28,7 +29,7 @@ class Model:
     params = []    
     eqs = []
     fit_result = None
-    def __init__(self, name, states, parameters, model_definition, t_func, t_dep):
+    def __init__(self, name, states, parameters, model_definition, t_func, t_dep, ivp_method='LSODA', minimizer_method='L-BFGS-B'):
         '''
         We give it a name, we give it all the symbolic equations, and params (defaults?)
 
@@ -47,13 +48,10 @@ class Model:
         self.eqs = model['equations']
         self.symbols = model['symbols']
         assert type(t_dep) == str and t_dep in self.symbols.keys(), 'time-dependant variable must exist within equations'
+        self.ivp_method = ivp_method
+        self.minimizer_method = minimizer_method
         self.t_func = t_func # function, f.ex def light_fn(t, args*)
         self.t_dep = t_dep
-        
-    def transform(self, ts):
-        for transform in ts:
-            for i, eq in enumerate(self.eqs):
-                self.eqs[i] = eq.subs(transform)
                 
     def make_numerical(self, module='numpy'):
 
@@ -160,7 +158,7 @@ class Model:
                     sol = solve_ivp(
                         lambda t, y: system(t, y, p_full, self.t_func, t_args),
                         [times[0], times[-1]], y0, 
-                        t_eval=times, method='LSODA', rtol=1e-8
+                        t_eval=times, method=self.ivp_method, rtol=1e-8
                     )
                     
                     if sol.success:
@@ -180,8 +178,8 @@ class Model:
         p_init = [params_to_fit[name] for name in param_names]
         
         result = minimize(
-            objective, p_init, 
-            method='L-BFGS-B',
+            objective, p_init,
+            method=self.minimizer_method,
             bounds=[(0.001, 5)] * len(p_init),
             options={'maxiter': 1000}
         )
@@ -206,7 +204,7 @@ class Model:
     def save_results(self):
         assert self.fit_result is not None, "To save results you gotta have results."
         time = datetime.now().strftime('%d-%m-%Y_%H:%M:%S')
-        path = RESULTS_PATH / f'{self.name}_{time}.json'
+        path = RESULTS_PATH / f'{self.name}_{time}_{self.minimizer_method}.json'
         from pprint import pprint
         pprint(self.fit_result)
         with open(path, 'w') as f: json.dump(self.fit_result['fitted_params'], f)
