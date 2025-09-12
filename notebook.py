@@ -17,14 +17,29 @@ def _():
 
 
 @app.cell
-def _():
-    return
+def _(DATA_PATH, mo):
+
+    data_options = [file.name for file in DATA_PATH.iterdir() if file.name.endswith('csv')]
+
+
+    data_option_widget = mo.ui.radio(options=data_options, label="Pick which data version you use")
+    data_option_widget
+    return (data_option_widget,)
 
 
 @app.cell
-def _(DATA_PATH, pd):
+def _(data_option_widget):
+
+    data_p =  dow if (dow := data_option_widget.value) is not None else 'data_transient_v3.csv'
+
+
+    return (data_p,)
+
+
+@app.cell
+def _(DATA_PATH, data_p, pd):
     from models.simple_EGFR_transient import m, y0 as models_y0, light_func, nodes as param_list, nodes as states 
-    df = pd.read_csv(DATA_PATH / 'data_transient_v3.csv', index_col=False)
+    df = pd.read_csv(DATA_PATH / data_p,  index_col=False)
     return df, light_func, m
 
 
@@ -36,19 +51,6 @@ def _():
     #df['group'] = df['uid'].astype('str') + df['stim_exposure'].astype('str')
     #df.drop(axis=1, columns=df.columns.difference(['y','time','group']), inplace=True)
     #df.to_csv(DATA_PATH / 'data_transient_v2.csv', index=False)
-    return
-
-
-@app.cell
-def _(DATA_PATH, pd):
-    df1 = pd.read_csv(DATA_PATH / 'data_transient_v3.csv', index_col=False)
-    df1
-    return (df1,)
-
-
-@app.cell
-def _(df1):
-    df1[df1['group']==500].groupby('time').median('y')
     return
 
 
@@ -145,20 +147,22 @@ def input(mo):
 
 
 @app.cell(hide_code=True)
-def input_plot(light_func, mo, np, plt):
+def input_plot(df, mo, np, plt):
     fig0, (ax1) = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
     t_vals = np.linspace(1, 59, 100)
-    ax1.plot(t_vals, [light_func(t, {'group':50}) for t in t_vals])
-    ax1.set_title("light input")
-    ax1.set_xlabel("time")
-    ax1.set_ylabel("light conc")
-    ax1.grid(True)
-
-    plt.show()
+    #ax1.plot(t_vals, [light_func(t, {'group':light_intensity}) for t in t_vals])
+    #ax1.set_title("light input")
+    #ax1.set_xlabel("time")
+    #ax1.set_ylabel("light conc")
+    #ax1.grid(True)
+    #
+    #plt.show()
 
     plot_input = False
     input_plot_widget = mo.ui.switch(label="Plot input?")
-    return input_plot_widget, t_vals
+
+    pick_light_intensity_to_plot = mo.ui.dropdown(options=df['group'].unique())
+    return input_plot_widget, pick_light_intensity_to_plot, t_vals
 
 
 @app.cell
@@ -190,9 +194,15 @@ def _():
 
 
 @app.cell
-def _(df1, plt):
-    plt.plot(df1[df1['group']==200]['time'], df1[df1['group']==200]['y'])
-    return
+def _(df, mo, plt):
+    toplot = df[df['group']==0].groupby('time', as_index=False,sort=True).median('y')
+    toplot
+    plt.ylim(0, 0.6)
+    plt.plot('time', 'y', data=toplot )
+
+    ylim_w = mo.ui.text(label='ylab thresh')
+
+    return (ylim_w,)
 
 
 @app.cell
@@ -203,6 +213,7 @@ def simulation(
     m,
     mo,
     p_full,
+    pick_light_intensity_to_plot,
     plot_nodes,
     plot_original_widget,
     plt,
@@ -211,30 +222,37 @@ def simulation(
     system,
     t_vals,
     y0,
+    ylim_w,
 ):
     import seaborn as sns
-
     # def wrapped_system(t, y):
     #     return egfr_system(t, y, merged_param_values, light_input)
-
+    light_intensity =  litp if (litp := pick_light_intensity_to_plot.value) is not None else 200
 
     sol = solve_ivp(
-        lambda t, y: system(t, y, p_full, light_func, {'group':50}),
+        lambda t, y: system(t, y, p_full, light_func, {'group':light_intensity}),
         (1, 59), y0, rtol=1e-4, atol=1e-7, t_eval=t_vals )
     print(sol)
     fig, ax = plt.subplots(figsize=(8, 5), dpi=120)
 
-    if plot_original_widget.value:
-        sns.lineplot(data=df, x='time', y='y', estimator="median")
+    if (ylim := ylim_w.value) != "" and float(ylim):
+        ax.set_ylim(top=float(ylim))
+    
+
 
     for i, name in enumerate(m.active_states):
         if name in plot_nodes.value:
             ax.plot(sol.t, sol.y[i], label=name)
 
     if input_plot_widget.value:
-        ax.plot(t_vals, [light_func(t, {'group':50}) for t in t_vals], label="Input")
+        ax.plot(t_vals, [light_func(t, {'group':light_intensity}) for t in t_vals], label="Input")
 
-    ax.set_title("EGFR Pathway Simulation")
+    if plot_original_widget.value:
+        grouped = df[df['group'] == light_intensity]
+        sns.lineplot(data=grouped, x='time', y='y', estimator="median", label='Original data')
+
+    print('light intensity:', light_intensity)
+    ax.set_title(f"EGFR Pathway Simulation (param={light_intensity})")
     ax.set_xlabel("Time")
     ax.set_ylabel("Concentration")
     ax.legend(loc=1)
@@ -242,8 +260,8 @@ def simulation(
 
     ctrls = mo.accordion({
         "State Variables to plot":plot_nodes,
+        "Others":[input_plot_widget, plot_original_widget, pick_light_intensity_to_plot, ylim_w],
         "Parameter values": sliders,
-        "Others":[input_plot_widget, plot_original_widget]
     })
     mo.hstack([ctrls,fig], widths=[0.3,0.7], gap="1rem")
     return (sol,)
@@ -278,6 +296,11 @@ def _(pd, sol):
     state_names = ['RAS_s', 'RAF_s', 'MEK_s',  'NFB_s', 'ERK_s']
     df_sol = sol_to_df(sol, state_names)
     df_sol
+    return
+
+
+@app.cell
+def _():
     return
 
 

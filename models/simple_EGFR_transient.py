@@ -23,15 +23,20 @@ def model_eqs(params: List[str], states: List[str]) -> EquationDescription:
     symbols_dict['light'] = Symbol('light')  # assuming this is also a symbol
     
     s = symbols_dict  # shorter alias
-    
-    eqs = [
+
+    base_eqs = [
         Eq(Derivative(s['RAS_s'], s['t']), s['light'] * (s['RAS']/(s['K12']+s['RAS'])) - s['k21'] * (s['RAS_s']/(s['K21']+s['RAS_s']))),
         Eq(Derivative(s['RAF_s'], s['t']), s['k34'] * s['RAS_s'] * (s['RAF'] / (s['K34'] + s['RAF'])) - (s['knfb'] * s['NFB_s'] + s['k43']) * (s['RAF_s']/(s['K43']+s['RAF_s']))),
         Eq(Derivative(s['MEK_s'], s['t']), s['k56'] * s['RAF_s'] * (s['MEK'] / (s['K56'] + s['MEK'])) - s['k65'] * (s['MEK_s']/(s['K65']+s['MEK_s']))),
         Eq(Derivative(s['NFB_s'], s['t']), s['f12'] * s['ERK_s'] * (s['NFB'] / (s['F12'] + s['NFB'])) - s['f21']*(s['NFB_s']/(s['F21']+s['NFB_s']))),
         Eq(Derivative(s['ERK_s'], s['t']), s['k78'] * s['MEK_s'] * (s['ERK'] / (s['K78'] + s['ERK'])) - s['k87'] * (s['ERK_s']/(s['K87']+s['ERK_s']))),
     ]
-    return {'equations': eqs, 'symbols': symbols_dict}
+
+    equations = []
+    for eq in base_eqs:
+      equations.append(eq.subs({k:(1 - Symbol(f'{k}_s')) for k in nodes if not k.endswith('_s')}))
+    
+    return {'base_equations': base_eqs, 'symbols': symbols_dict, "equations": equations}
 
 
 param_list = ["K12", "k21", "K21",
@@ -51,6 +56,7 @@ nodes = flatten_extend([ [f'{node}_s',node ] for node in  ["RAS", "RAF", "MEK", 
 def light_func(t, rest=None):
   # Smooth transitions to avoid solver issues
   modifier = float(rest['group'])
+  if modifier == 0: return 0
   base_intensity = 1.0        # Base light intensity
   max_additional = 1.0        # Maximum additional intensity
   saturation_point = 200.0    # Modifier value where we reach ~50% of max_additional
@@ -58,7 +64,6 @@ def light_func(t, rest=None):
   # Sigmoid scaling: smooth saturation
   intensity_scale = base_intensity + max_additional * modifier / (modifier + saturation_point)
 
-  import numpy as np
   if t <= 9:
     return 0
   elif t <= 9.1:  # Smooth rise
@@ -70,38 +75,35 @@ def light_func(t, rest=None):
   else:
     return 0
 
-m = Model(name = 'egfr_transient_pulse_median',
+m = Model(name = 'transient_new_normalization',
           parameters = param_list,
           states = nodes,
           model_definition = model_eqs,
           t_func = light_func,
           t_dep='light'
           )
-m.transform(
-    [
-        # change f.ex RAS into (1-RAS_s), for all states
-        {k:(2 - Symbol(f'{k}_s')) for k in nodes if not k.endswith('_s')}
-    ])
-
-
-#data = DATA_PATH / "data_transient_v2.csv"
-#df = pd.read_csv(data)
-df = pd.read_csv(DATA_PATH / 'data_transient.csv', index_col=False)
-df['y'] = df['cnr_norm']
-df['time'] = df['frame']
-df['group'] = df['stim_exposure'].astype('str')
-df.drop(axis=1, columns=df.columns.difference(['y','time','group']), inplace=True)
-df.to_csv(DATA_PATH / 'data_transient_v2.csv', index=False)
+from utils.utils import read_parquet_and_clean
+df = read_parquet_and_clean( DATA_PATH / 'exp_data.parquet', save_as= DATA_PATH / 'data_transient_v4.csv')
 df = df.groupby(['group','time']).median('y')
 df.reset_index(inplace=True)
 
 y0 = [0.05] * 5
 import json
+from datetime import datetime
 with open(DATA_PATH / 'egfr_fit_transient_1_params.json', 'r') as f:
   p0 = json.load(f)
 if __name__ == '__main__':
-  from datetime import datetime
-  print(datetime.now(),'starting fitting....'  )
-  m.fit(df,y0,p0, None,p0, None)
-  m.save_results()
-  print('done at: ', datetime.now() )
+  models = ['L-BFGS-B','Nelder-Mead']
+#'CG', 'BFGS', 'Newton-CG', 'L-BFGS-B', 'TNC', 'SLSQP', 'dogleg', 'trust-ncg', 'trust-krylov', 'trust-exact', 'trust-constr'
+  for mod in models:
+    m = Model(name = f'trans_check_{mod}',
+          parameters = param_list,
+          states = nodes,
+          model_definition = model_eqs,
+          t_func = light_func,
+          t_dep='light'
+          )
+    print(datetime.now(),'starting fitting....', mod  )
+    m.fit(df,y0,p0, None,p0, None)
+    m.save_results()
+    print(f'done w/ {mod} at: ', datetime.now() )

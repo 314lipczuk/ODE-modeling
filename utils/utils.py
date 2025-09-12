@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PosixPath
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -52,11 +52,11 @@ def prep_from_parquet(file:str, save_as=None):
     # Drop first frame per UID (NaN in diff)
     df = df.dropna(subset=['diff'])
     # Compute mean absolute difference per UID
+    df = df[df['cell_line'] == 'EGFR']
     df['mean_diff'] = df.groupby('uid')['diff'].transform('mean')
     # Define a threshold (e.g., remove top 0.02% fluctuating cells)
     threshold = df['mean_diff'].quantile(0.998)
     df = df[df['mean_diff'] < threshold]
-    df = df[df['cell_line'] == 'EGFR']
 
     # get fraction from ratio, normalize, and assign to y
     frac = df['cnr_norm'] / (df['cnr_norm'] + 1)
@@ -72,6 +72,45 @@ def prep_from_parquet(file:str, save_as=None):
     # df = df.groupby(['group','time']).median('y')
     # df.reset_index(inplace=True)
     return df
+
+def read_parquet_and_clean(file, save_as=None):
+    assert str(file).endswith('.parquet')
+    assert (save_as is None) or (type(save_as) == str and save_as.endswith('.csv') or (type(save_as)==PosixPath and save_as.name.endswith('.csv')))
+    ex = pd.read_parquet(file, )
+    ring = ex["mean_intensity_C1_ring"].astype(float)
+    nuc  = ex["mean_intensity_C1_nuc"].astype(float)
+
+    # unique cell id
+    ex["uid"] = ex["fov"].astype(str) + "_" + ex["particle"].astype(str)
+
+    # time
+    ex["time"] = ex["timestep"]
+
+    # compute fraction
+    eps = 1e-12
+    ex["fraction"] = ring / (ring + nuc + eps)
+
+    # compute baseline mean and std per uid (frames < 10s)
+    baseline = ex[ex["time"] < 10].groupby("uid")["fraction"].agg(["mean","std"]).reset_index()
+    baseline.rename(columns={"mean":"baseline_mean","std":"baseline_std"}, inplace=True)
+    baseline["baseline_std"] = baseline["baseline_std"].fillna(0.0) + eps
+
+    # merge baseline stats back
+    ex = ex.merge(baseline, on="uid", how="left")
+
+    # normalized variants
+    ex["frac_sub"] = ex["fraction"] - ex["baseline_mean"]                      # delta
+
+    ex["group"] = ex["stim_exposure"].astype(int)
+
+    ex['y'] = ex['frac_sub'] / max(ex['frac_sub'])
+
+    ex.drop(axis=1, columns=ex.columns.difference(['time','group', 'y' ]), inplace=True)
+
+    if save_as is not None: ex.to_csv(DATA_PATH / save_as, index=False)
+
+    return ex
+
 
 # Print paths for debugging (can be removed later)
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from scipy.integrate import solve_ivp
 from pathlib import Path
 from utils.utils import RESULTS_PATH
 import json
+from jax import grad
 
 class EquationDescription(TypedDict):
     equations:List[Equality]
@@ -176,12 +177,18 @@ class Model:
             return total_loss
         
         p_init = [params_to_fit[name] for name in param_names]
+        if self.minimizer_method in ['CG', 'BFGS', 'Newton-CG', 'L-BFGS-B', 'TNC', 'SLSQP', 'dogleg', 'trust-ncg', 'trust-krylov', 'trust-exact', 'trust-constr']:
+            self.deriv = grad(objective)
+        else:
+            self.deriv = None
         
         result = minimize(
             objective, p_init,
             method=self.minimizer_method,
             bounds=[(0.001, 5)] * len(p_init),
-            options={'maxiter': 1000}
+            options={'maxiter': 1000},
+            jac=self.deriv,
+
         )
         
         # Package results
