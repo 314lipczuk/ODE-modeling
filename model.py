@@ -10,6 +10,7 @@ from pathlib import Path
 from utils.utils import RESULTS_PATH
 import json
 from jax import grad
+import jax.numpy as jnp
 
 class EquationDescription(TypedDict):
     equations:List[Equality]
@@ -129,24 +130,31 @@ class Model:
         # Get the numerical system
         system = self.make_numerical()
 
-        def objective(p_fit_values):
+        def objective_log(p_fit_log_values):
+            # Transform from log space back to normal space
+            p_fit_values = np.exp(p_fit_log_values)
+            return objective_normal(p_fit_values)
+
+        def objective_normal(p_fit_values):
             # Build parameter vector for this model only
-            p_full = np.zeros(len(self.parameters))
-            
+            p_full_list = []
+
             # Start with provided p0 values
             for i, param_name in enumerate(self.parameters):
                 if param_name in params_to_fit:
                     # Find which fitted parameter this is
                     fit_idx = param_names.index(param_name)
-                    p_full[i] = p_fit_values[fit_idx]
+                    p_full_list.append(p_fit_values[fit_idx])
                 elif param_name in params_to_fix:
-                    p_full[i] = params_to_fix[param_name]
+                    p_full_list.append(params_to_fix[param_name])
                 else:
                     # Use default from p0
-                    p_full[i] = p0[i] if i < len(p0) else 1.0
+                    p_full_list.append(p0[i] if i < len(p0) else 1.0)
+            
+            p_full = np.array(p_full_list)
             
             total_loss = 0.0
-            
+
             # Process each unique group/experiment
             unique_groups = dataframe['group'].unique()
             for group_id in unique_groups:
@@ -177,33 +185,135 @@ class Model:
             return total_loss
         
         p_init = [params_to_fit[name] for name in param_names]
-        if self.minimizer_method in ['CG', 'BFGS', 'Newton-CG', 'L-BFGS-B', 'TNC', 'SLSQP', 'dogleg', 'trust-ncg', 'trust-krylov', 'trust-exact', 'trust-constr']:
-            self.deriv = grad(objective)
-        else:
-            self.deriv = None
-        
-        result = minimize(
-            objective, p_init,
-            method=self.minimizer_method,
-            bounds=[(0.001, 5)] * len(p_init),
-            options={'maxiter': 1000},
-            jac=self.deriv,
 
+        # Choose objective and bounds based on optimizer
+        use_log_transform = self.minimizer_method in ['L-BFGS-B', 'trust-constr', 'SLSQP']
+
+        if use_log_transform:
+            # Log-space optimization for better numerical stability
+            p_init_log = np.log(np.maximum(p_init, 1e-10))  # Avoid log(0)
+            objective_func = objective_log
+            bounds = [(-10, 5)] * len(p_init)  # exp(-10) to exp(5) ≈ 4.5e-5 to 148
+        else:
+            objective_func = objective_normal
+            bounds = [(1e-6, 100)] * len(p_init)
+
+        # Improved optimizer options
+        if self.minimizer_method == 'L-BFGS-B':
+            options = {
+                'maxiter': 10000,
+                'ftol': 1e-9,
+                'gtol': 1e-6,
+                'maxls': 50
+            }
+        elif self.minimizer_method == 'trust-constr':
+            options = {
+                'maxiter': 10000,
+                'xtol': 1e-8,
+                'gtol': 1e-6
+            }
+        else:
+            options = {'maxiter': 10000}
+
+        initial_params = p_init_log if use_log_transform else p_init
+
+        result = minimize(
+            objective_func, initial_params,
+            method=self.minimizer_method,
+            bounds=bounds,
+            options=options
         )
         
-        # Package results
-        fitted_params = dict(zip(param_names, result.x))
-        
+        # Package results - transform back from log space if needed
+        final_params = np.exp(result.x) if use_log_transform else result.x
+        fitted_params = dict(zip(param_names, final_params))
+
+        # Calculate detailed fit statistics
+        n_experiments = len(dataframe['group'].unique())
+        n_data_points = len(dataframe)
+        n_fitted_params = len(param_names)
+        degrees_of_freedom = n_data_points - n_fitted_params
+
+        # Per-group statistics
+        group_stats = {}
+        system = self.make_numerical()
+
+        for group_id in dataframe['group'].unique():
+            group_data = dataframe[dataframe['group'] == group_id].sort_values('time')
+            times = group_data['time'].values
+            observed_data = group_data['y'].values
+
+            # Simulate with fitted parameters
+            p_full_list = []
+            for i, param_name in enumerate(self.parameters):
+                if param_name in fitted_params:
+                    p_full_list.append(fitted_params[param_name])
+                elif param_name in params_to_fix:
+                    p_full_list.append(params_to_fix[param_name])
+                else:
+                    p_full_list.append(p0[i] if i < len(p0) else 1.0)
+
+            p_full = np.array(p_full_list)
+            t_args_copy = t_args.copy() if t_args else {}
+            t_args_copy['group'] = group_id
+
+            try:
+                sol = solve_ivp(
+                    lambda t, y: system(t, y, p_full, self.t_func, t_args_copy),
+                    [times[0], times[-1]], y0,
+                    t_eval=times, method=self.ivp_method, rtol=1e-8
+                )
+
+                if sol.success:
+                    predicted_data = sol.y[-1]
+                    residuals = predicted_data - observed_data
+                    mse = np.mean(residuals**2)
+                    rmse = np.sqrt(mse)
+                    r_squared = 1 - np.sum(residuals**2) / np.sum((observed_data - np.mean(observed_data))**2)
+
+                    group_stats[str(group_id)] = {
+                        'mse': float(mse),
+                        'rmse': float(rmse),
+                        'r_squared': float(r_squared),
+                        'n_points': len(times),
+                        'max_observed': float(np.max(observed_data)),
+                        'max_predicted': float(np.max(predicted_data))
+                    }
+            except:
+                group_stats[str(group_id)] = {'error': 'simulation_failed'}
+
+        # Overall statistics
+        overall_mse = result.fun / n_data_points
+        aic = 2 * n_fitted_params + n_data_points * np.log(result.fun / n_data_points) if result.fun > 0 else np.inf
+        bic = np.log(n_data_points) * n_fitted_params + n_data_points * np.log(result.fun / n_data_points) if result.fun > 0 else np.inf
+
         self.fit_result = {
             'fitted_params': fitted_params,
             'loss': result.fun,
             'success': result.success,
             'message': result.message,
-            'n_experiments': len(dataframe['group'].unique()),
+            'n_experiments': n_experiments,
+            'optimization_info': {
+                'method': self.minimizer_method,
+                'n_iterations': result.nit if hasattr(result, 'nit') else None,
+                'n_function_evaluations': result.nfev if hasattr(result, 'nfev') else None,
+                'log_transform_used': use_log_transform,
+                'final_gradient_norm': np.linalg.norm(result.jac) if hasattr(result, 'jac') and result.jac is not None else None
+            },
+            'fit_statistics': {
+                'overall_mse': float(overall_mse),
+                'rmse': float(np.sqrt(overall_mse)),
+                'aic': float(aic),
+                'bic': float(bic),
+                'degrees_of_freedom': degrees_of_freedom,
+                'n_data_points': n_data_points,
+                'n_fitted_params': n_fitted_params,
+                'group_statistics': group_stats
+            },
             'params':{
-                "to_fix":params_to_fix,
-                "to_fit":params_to_fit,
-                "all":self.parameters
+                "to_fix": params_to_fix,
+                "to_fit": params_to_fit,
+                "all": self.parameters
             }
         }
         return self.fit_result
@@ -214,6 +324,6 @@ class Model:
         path = RESULTS_PATH / f'{self.name}_{time}_{self.minimizer_method}.json'
         from pprint import pprint
         pprint(self.fit_result)
-        with open(path, 'w') as f: json.dump(self.fit_result['fitted_params'], f)
+        with open(path, 'w') as f: json.dump(self.fit_result, f, indent=2)
 
             

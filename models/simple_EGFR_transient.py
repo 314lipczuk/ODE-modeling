@@ -8,7 +8,7 @@ import pandas as pd
 from sympy import Eq, Derivative, Symbol
 from sympy.abc import t
 import numpy as np
-from utils.utils import DATA_PATH
+from utils.utils import DATA_PATH, RESULTS_PATH
 
 def model_eqs(params: List[str], states: List[str]) -> EquationDescription:
     symbols_dict = {}
@@ -55,48 +55,57 @@ nodes = flatten_extend([ [f'{node}_s',node ] for node in  ["RAS", "RAF", "MEK", 
 
 def light_func(t, rest=None):
   # Smooth transitions to avoid solver issues
-  modifier = float(rest['group'])
-  if modifier == 0: return 0
-  base_intensity = 1.0        # Base light intensity
-  max_additional = 1.0        # Maximum additional intensity
-  saturation_point = 200.0    # Modifier value where we reach ~50% of max_additional
-  
-  # Sigmoid scaling: smooth saturation
-  intensity_scale = base_intensity + max_additional * modifier / (modifier + saturation_point)
+  delta_t = 0.2
 
-  if t <= 9:
-    return 0
-  elif t <= 9.1:  # Smooth rise
-    return intensity_scale * (t - 9) / 0.1
-  elif t <= 10.9:  # Plateau
-    return intensity_scale
-  elif t <= 11:   # Smooth fall
-    return intensity_scale * (11 - t) / 0.1
+  if (10-delta_t) < t < (10+delta_t): 
+    modifier = float(rest['group'])
+    if modifier == 0: return 0
+    log_modifier = np.log(modifier)
+    return log_modifier - log_modifier * (np.abs(10-t)/delta_t)
   else:
     return 0
 
-m = Model(name = 'transient_new_normalization',
+
+m = Model(name = 'retvrn',
           parameters = param_list,
           states = nodes,
           model_definition = model_eqs,
           t_func = light_func,
           t_dep='light'
           )
+
+def test_lightFn():
+  _t = np.linspace(0,60, 150)
+  result = np.array([light_func(it, {'group':0}) for it in _t])
+  assert np.all(result == 0)
+
+  #result = np.array([light_func(it, {'group':50}) for it in _t])
+  #assert np.all(result[-50:-1] == 0)
+
+  #result = np.array([light_func(it, {'group':50}) for it in _t])
+  #assert np.all(result[0:10] == 0)
+
+
+test_lightFn()
+          
+
 from utils.utils import read_parquet_and_clean
-df = read_parquet_and_clean( DATA_PATH / 'exp_data.parquet', save_as= DATA_PATH / 'data_transient_v4.csv')
+df = read_parquet_and_clean( DATA_PATH / 'exp_data.parquet', save_as= DATA_PATH / 'data_transient_v5.csv')
 df = df.groupby(['group','time']).median('y')
 df.reset_index(inplace=True)
 
 y0 = [0.05] * 5
 import json
 from datetime import datetime
-with open(DATA_PATH / 'egfr_fit_transient_1_params.json', 'r') as f:
+with open(RESULTS_PATH / 'user_defined_20250913_203158.json', 'r') as f:
   p0 = json.load(f)
 if __name__ == '__main__':
+  # Prioritize robust optimizers for biochemical parameter fitting
+  #models = ['trust-constr', 'L-BFGS-B', 'SLSQP', 'Nelder-Mead', 'COBYLA', 'TNC']
   models = ['L-BFGS-B','Nelder-Mead']
-#'CG', 'BFGS', 'Newton-CG', 'L-BFGS-B', 'TNC', 'SLSQP', 'dogleg', 'trust-ncg', 'trust-krylov', 'trust-exact', 'trust-constr'
+
   for mod in models:
-    m = Model(name = f'trans_check_{mod}',
+    m = Model(name = f'simple_lf_logged_{mod}',
           parameters = param_list,
           states = nodes,
           model_definition = model_eqs,

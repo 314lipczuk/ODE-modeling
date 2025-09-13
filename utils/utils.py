@@ -103,7 +103,7 @@ def read_parquet_and_clean(file, save_as=None):
 
     ex["group"] = ex["stim_exposure"].astype(int)
 
-    ex['y'] = ex['frac_sub'] / max(ex['frac_sub'])
+    ex['y'] = ex.groupby('group')['frac_sub'].transform(lambda x: x / x.max())
 
     ex.drop(axis=1, columns=ex.columns.difference(['time','group', 'y' ]), inplace=True)
 

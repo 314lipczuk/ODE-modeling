@@ -11,9 +11,10 @@ def _():
     import numpy as np
     import pandas as pd
     import matplotlib.pyplot as plt
+    from datetime import datetime
     from utils.utils import DATA_PATH, MODELS_PATH, RESULTS_PATH
     mo.md("# EGFR Pathway Simulation")
-    return DATA_PATH, RESULTS_PATH, mo, np, pd, plt, solve_ivp
+    return DATA_PATH, RESULTS_PATH, datetime, mo, np, pd, plt, solve_ivp
 
 
 @app.cell
@@ -31,15 +32,13 @@ def _(DATA_PATH, mo):
 def _(data_option_widget):
 
     data_p =  dow if (dow := data_option_widget.value) is not None else 'data_transient_v3.csv'
-
-
-    return (data_p,)
+    return
 
 
 @app.cell
-def _(DATA_PATH, data_p, pd):
-    from models.simple_EGFR_transient import m, y0 as models_y0, light_func, nodes as param_list, nodes as states 
-    df = pd.read_csv(DATA_PATH / data_p,  index_col=False)
+def _():
+    from models.simple_EGFR_transient import m, y0 as models_y0, light_func, nodes as param_list, nodes as states , df
+    #df = pd.read_csv(DATA_PATH / data_p,  index_col=False)
     return df, light_func, m
 
 
@@ -55,9 +54,18 @@ def _():
 
 
 @app.cell
-def _(df):
-    dfy = df.groupby(['group','time']).mean('y')
-    dfy
+def _():
+    #dfy = df.groupby(['group','time']).mean('y')
+    #dfy
+    return
+
+
+@app.cell
+def _(light_func, np, plt):
+
+    _x= np.linspace(1,60,120)
+    _y = np.array([light_func(xx, {'group':50}) for xx in _x])
+    plt.plot(_x,_y)
     return
 
 
@@ -73,7 +81,9 @@ def _(RESULTS_PATH, mo):
     #def param_reader():
     import os
     import pathlib
-    candidate_params = list(reversed([c for c in os.listdir(RESULTS_PATH) if c.endswith('.json')]))
+    json_files = [c for c in os.listdir(RESULTS_PATH) if c.endswith('.json')]
+    # Sort by creation time (newest first)
+    candidate_params = sorted(json_files, key=lambda f: os.path.getctime(RESULTS_PATH / f), reverse=True)
     param_widget = mo.ui.radio(options=candidate_params, value=candidate_params[0])
     param_widget
     return (param_widget,)
@@ -99,7 +109,7 @@ def _(RESULTS_PATH, m, param_widget):
             p = dp.get('fitted_params')
             dp = {k: p[k] for k in m.parameters} 
     dp
-    return (dp,)
+    return dp, json
 
 
 @app.cell
@@ -201,8 +211,40 @@ def _(df, mo, plt):
     plt.plot('time', 'y', data=toplot )
 
     ylim_w = mo.ui.text(label='ylab thresh')
-
     return (ylim_w,)
+
+
+@app.cell
+def _():
+    # _groups = df['group'].unique()
+    # _fig, _ax = plt.subplot(3,2,1)
+    # for _a, _g in zip(_ax, _groups):
+    #     _d = df[df['group']==_g]
+    #     a.hist(d)
+    return
+
+
+@app.cell
+def _(RESULTS_PATH, datetime, json, m, mo, sliders):
+    def onclick(arg):
+        # Get current parameter values
+        current_params = {p: sliders[p].value for p in m.parameters}
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"user_defined_{timestamp}.json"
+        # Save to results directory
+        with open(RESULTS_PATH / filename, 'w') as _f:
+            json.dump(current_params, _f, indent=4)
+        print('saved', arg)
+    save_button = mo.ui.button(label="Save Parameters", on_click=onclick)
+    return (save_button,)
+
+
+@app.cell
+def _():
+
+    # Function to handle saving parameters
+    return
 
 
 @app.cell
@@ -217,6 +259,7 @@ def simulation(
     plot_nodes,
     plot_original_widget,
     plt,
+    save_button,
     sliders,
     solve_ivp,
     system,
@@ -225,31 +268,31 @@ def simulation(
     ylim_w,
 ):
     import seaborn as sns
-    # def wrapped_system(t, y):
-    #     return egfr_system(t, y, merged_param_values, light_input)
-    light_intensity =  litp if (litp := pick_light_intensity_to_plot.value) is not None else 200
+    # Create save button widget
 
+
+    light_intensity = litp if (litp := pick_light_intensity_to_plot.value) is not None else 200
+    print(light_intensity)
     sol = solve_ivp(
-        lambda t, y: system(t, y, p_full, light_func, {'group':light_intensity}),
-        (1, 59), y0, rtol=1e-4, atol=1e-7, t_eval=t_vals )
+        lambda t, y: system(t, y, p_full, light_func, {'group': light_intensity}),
+        (1, 59), y0, rtol=1e-4, atol=1e-7, t_eval=t_vals)
     print(sol)
     fig, ax = plt.subplots(figsize=(8, 5), dpi=120)
 
     if (ylim := ylim_w.value) != "" and float(ylim):
         ax.set_ylim(top=float(ylim))
-    
-
 
     for i, name in enumerate(m.active_states):
         if name in plot_nodes.value:
             ax.plot(sol.t, sol.y[i], label=name)
 
     if input_plot_widget.value:
-        ax.plot(t_vals, [light_func(t, {'group':light_intensity}) for t in t_vals], label="Input")
+        ax.plot(t_vals, [light_func(t, {'group': light_intensity}) for t in t_vals], label="Input")
 
     if plot_original_widget.value:
         grouped = df[df['group'] == light_intensity]
         sns.lineplot(data=grouped, x='time', y='y', estimator="median", label='Original data')
+
 
     print('light intensity:', light_intensity)
     ax.set_title(f"EGFR Pathway Simulation (param={light_intensity})")
@@ -259,11 +302,12 @@ def simulation(
     ax.grid(True)
 
     ctrls = mo.accordion({
-        "State Variables to plot":plot_nodes,
-        "Others":[input_plot_widget, plot_original_widget, pick_light_intensity_to_plot, ylim_w],
+        "State Variables to plot": plot_nodes,
+        "Others": [input_plot_widget, plot_original_widget, pick_light_intensity_to_plot, ylim_w],
         "Parameter values": sliders,
+        "Save Parameters": mo.vstack([save_button])
     })
-    mo.hstack([ctrls,fig], widths=[0.3,0.7], gap="1rem")
+    mo.hstack([ctrls, fig], widths=[0.3, 0.7], gap="1rem")
     return (sol,)
 
 
@@ -301,6 +345,175 @@ def _(pd, sol):
 
 @app.cell
 def _():
+    return
+
+
+@app.cell
+def _():
+    from numpy import log
+    def lf(t, rest=None):
+        # Smooth transitions to avoid solver issues
+        modifier = float(rest['group'])
+        if modifier == 0: return 0
+        base_intensity = 1.0        # Base light intensity
+        max_additional = 1.0        # Maximum additional intensity
+        saturation_point = 200.0    # Modifier value where we reach ~50% of max_additional
+
+        # Sigmoid scaling: smooth saturation
+        modifier = log(modifier)
+        intensity_scale = base_intensity + max_additional * modifier / (modifier + saturation_point)
+
+        if t <= 9+1:
+            return 0
+        elif t <= 9.1+1:  # Smooth rise
+            return intensity_scale * (t - 9) / 0.1
+        elif t <= 10.9+1:  # Plateau
+            return intensity_scale
+        elif t <= 11+1:   # Smooth fall
+            return intensity_scale * (11 - t) / 0.1
+        else:
+            return 0
+    return
+
+
+@app.cell
+def _(dp, mo, plt):
+    if 'fit_statistics' not in dp:
+        mo.stop('a')
+
+    _stats = dp['fit_statistics']
+    _group_stats = _stats['group_statistics']
+
+    # Create a 2x2 subplot layout
+    _fig, _axes = plt.subplots(2, 2, figsize=(12, 8))
+    _fig.suptitle(f"Fit Statistics - {dp.get('optimization_info', {}).get('method', 'Unknown')} Method", fontsize=14)
+
+    # 1. R² by group (top-left)
+    _groups = list(_group_stats.keys())
+    _r_squared_vals = [_group_stats[g].get('r_squared', 0) for g in _groups if 'error' not in _group_stats[g]]
+    _axes[0,0].bar(_groups, _r_squared_vals, color='steelblue', alpha=0.7)
+    _axes[0,0].set_title('R² by Group')
+    _axes[0,0].set_ylabel('R²')
+    _axes[0,0].set_ylim(0, 1)
+
+    # 2. RMSE by group (top-right)
+    _rmse_vals = [_group_stats[g].get('rmse', 0) for g in _groups if 'error' not in _group_stats[g]]
+    _axes[0,1].bar(_groups, _rmse_vals, color='coral', alpha=0.7)
+    _axes[0,1].set_title('RMSE by Group')
+    _axes[0,1].set_ylabel('RMSE')
+
+    # 3. Observed vs Predicted Max Values (bottom-left)
+    _obs_max = [_group_stats[g].get('max_observed', 0) for g in _groups if 'error' not in _group_stats[g]]
+    _pred_max = [_group_stats[g].get('max_predicted', 0) for g in _groups if 'error' not in _group_stats[g]]
+    _axes[1,0].scatter(_obs_max, _pred_max, alpha=0.7, s=60)
+    _axes[1,0].plot([0, max(_obs_max)], [0, max(_obs_max)], 'k--', alpha=0.5)
+    _axes[1,0].set_xlabel('Observed Max')
+    _axes[1,0].set_ylabel('Predicted Max')
+    _axes[1,0].set_title('Observed vs Predicted Peak Values')
+
+    # 4. Model Info Table (bottom-right)
+    _axes[1,1].axis('off')
+    _info_text = f"""
+    Overall Statistics:
+    • Total Loss: {_stats['overall_mse']:.6f}
+    • AIC: {_stats['aic']:.2f}
+    • BIC: {_stats['bic']:.2f}
+    • Data Points: {_stats['n_data_points']}
+    • Fitted Params: {_stats['n_fitted_params']}
+    • DOF: {_stats['degrees_of_freedom']}
+
+    Optimization:
+    • Method: {dp.get('optimization_info', {}).get('method', 'N/A')}
+    • Success: {dp.get('success', 'N/A')}
+    • Iterations: {dp.get('optimization_info', {}).get('n_iterations', 'N/A')}
+    • Function Evals: {dp.get('optimization_info', {}).get('n_function_evaluations', 'N/A')}
+    """
+    _axes[1,1].text(0.05, 0.95, _info_text, transform=_axes[1,1].transAxes,
+                   fontsize=10, verticalalignment='top', fontfamily='monospace')
+
+    plt.tight_layout()
+    return
+
+
+@app.cell
+def _(dp, mo, pd):
+    #if 'fit_statistics' not in dp:
+        #return (mo.md("No fit statistics available in this result file."), )
+
+    if 'fit_statistics' not in dp:
+        mo.stop('a')
+
+    _group_stats = dp['fit_statistics']['group_statistics']
+
+    # Convert to DataFrame for nice display
+    _rows = []
+    for _group, _stats in _group_stats.items():
+        if 'error' not in _stats:
+            _rows.append({
+                'Group': _group,
+                'R²': f"{_stats.get('r_squared', 0):.4f}",
+                'RMSE': f"{_stats.get('rmse', 0):.6f}",
+                'MSE': f"{_stats.get('mse', 0):.6f}",
+                'Max Observed': f"{_stats.get('max_observed', 0):.4f}",
+                'Max Predicted': f"{_stats.get('max_predicted', 0):.4f}",
+                'N Points': _stats.get('n_points', 0)
+            })
+        else:
+            _rows.append({
+                'Group': _group,
+                'Error': _stats['error'],
+                'R²': 'N/A', 'RMSE': 'N/A', 'MSE': 'N/A',
+                'Max Observed': 'N/A', 'Max Predicted': 'N/A', 'N Points': 'N/A'
+            })
+
+    _df_stats = pd.DataFrame(_rows)
+    return
+
+
+@app.cell
+def _(dp, mo, np, plt):
+    #if 'fit_statistics' not in dp:
+    #    return (mo.md("No fit statistics available."),)
+
+    if 'fit_statistics' not in dp:
+        mo.stop('a')
+    _stats = dp['fit_statistics']
+    _group_stats = _stats['group_statistics']
+
+    # Extract data for plotting
+    _groups = [g for g in _group_stats.keys() if 'error' not in _group_stats[g]]
+    _r2_vals = [_group_stats[g]['r_squared'] for g in _groups]
+    _rmse_vals = [_group_stats[g]['rmse'] for g in _groups]
+
+    # Create polar plot for R² values
+    _fig = plt.figure(figsize=(10, 5))
+
+    # Left: Radar chart for R²
+    _ax1 = _fig.add_subplot(121, projection='polar')
+    _angles = [i * 2 * np.pi / len(_groups) for i in range(len(_groups))]
+    _angles += _angles[:1]  # Complete the circle
+    _r2_vals += _r2_vals[:1]  # Complete the circle
+
+    _ax1.plot(_angles, _r2_vals, 'o-', linewidth=2, color='blue', alpha=0.7)
+    _ax1.fill(_angles, _r2_vals, alpha=0.25, color='blue')
+    _ax1.set_xticks(_angles[:-1])
+    _ax1.set_xticklabels([f'Group {g}' for g in _groups])
+    _ax1.set_ylim(0, 1)
+    _ax1.set_title('R² by Group (Radar Chart)', pad=20)
+
+    # Right: Bar chart for RMSE
+    _ax2 = _fig.add_subplot(122)
+    _bars = _ax2.bar(_groups, _rmse_vals, color='coral', alpha=0.7)
+    _ax2.set_title('RMSE by Group')
+    _ax2.set_xlabel('Group')
+    _ax2.set_ylabel('RMSE')
+
+    # Add value labels on bars
+    for _bar, _val in zip(_bars, _rmse_vals):
+        _ax2.text(_bar.get_x() + _bar.get_width()/2, _bar.get_height() + max(_rmse_vals)*0.01,
+                f'{_val:.4f}', ha='center', va='bottom', fontsize=9)
+
+    plt.tight_layout()
     return
 
 
