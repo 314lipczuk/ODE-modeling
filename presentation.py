@@ -7,7 +7,7 @@ app = marimo.App(
 )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -19,7 +19,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import marimo as mo
     from scipy.integrate import solve_ivp
@@ -27,7 +27,7 @@ def _():
     import pandas as pd
     import matplotlib.pyplot as plt
     from utils.utils import DATA_PATH, MODELS_PATH, RESULTS_PATH
-    from models.simple_EGFR_transient import m, y0 as models_y0, light_func, nodes as param_list, nodes as states 
+    from models.simple_EGFR_transient import m, y0 as models_y0, light_func, nodes as param_list, nodes as states, df
     import os
     import pathlib
     mo.md(
@@ -39,21 +39,10 @@ def _():
     - Build the understanding of the process of building, validating, and iterating on a model.
     """
     )
-    return (
-        DATA_PATH,
-        RESULTS_PATH,
-        light_func,
-        m,
-        mo,
-        np,
-        os,
-        pd,
-        plt,
-        solve_ivp,
-    )
+    return RESULTS_PATH, df, light_func, m, mo, np, os, pd, plt, solve_ivp
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -68,7 +57,24 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""
+    ### Modeling: Constraints and Assumptions
+
+    - Researching an entire complex system at once is often impossible to do.
+    - Why? Physical limitations of technology we have (both on the side of accurate collection of data and computational resources)
+    - So we narrow down, and investigate components
+    - PROBLEM: there are no neat abstraction layers / modules / interfaces in biology
+        - Everything is connected to everything else
+        - Doesn't it make it impossible to 'Narrow down and investigate components?'
+    """
+    )
+    return
+
+
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -84,29 +90,11 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
-    mo.md(
+    mo.hstack([mo.md(
         r"""
-    ### Modeling: Constraints and Assumptions
-
-    - Researching an entire complex system at once is often impossible to do
-    - Why? Physical limitations of technology we have (both on the side of accurate collection of data and computational resources)
-    - So we narrow down, and investigate components
-    - PROBLEM: there are no neat abstraction layers / modules / interfaces in biology
-        - Everything is connected to everything else
-        - Doesn't it make it impossible to 'Narrow down and investigate components?'
-    """
-    )
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        r"""
-    # Key Modeling Assumptions
-    ## Making the Complex Tractable
+    ### Making the Complex Tractable
 
     **Spatial Homogeneity:**
 
@@ -118,9 +106,10 @@ def _(mo):
 
     - Total enzyme concentrations constant
     - Mass conservation constraints applied
-    - Reduced parameter space through transformation
+    - Reduced parameter space through transformation (happens on the symbolic level)
     """
-    )
+    ), mo.md('TODO: Figure/Image for these two')])
+        
     return
 
 
@@ -141,11 +130,11 @@ def _(m, mo):
     - Enable parameter estimation from time-series data
 
     """
-    ), mo.vstack([m.eqs ])])
+    ), mo.vstack([m.eqs, mo.md('An example model; set of differential equations describing ERK dynamics') ],align='center')] )
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.vstack([mo.md(
         r"""
@@ -174,7 +163,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -200,14 +189,84 @@ def _(df, dp, m, mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(df, mo, plt):
+    _fig, _ax = plt.subplots(figsize=(8, 5), dpi=120)
+    #plt.subplots_adjust(wspace=0.5,hspace=0.5)
+    plt.tight_layout()
+    for _gr in df['group'].unique():
+        _sdf = df[df['group']==_gr]
+        _ax.plot('time', 'y', data=_sdf, label=_gr)
+
+    _ax.set_title(f"Experiment data")
+    _ax.set_xlabel("Time")
+    _ax.set_ylabel("Fraction of active ERK, baseline-normalized")
+    _ax.legend(loc=1)
+    _ax.grid(True)
+
+    mo.vstack([mo.md(
+        r"""
+    ### My approach: Data & Normalization
+    """),
+             mo.hstack([
+                 mo.vstack([mo.md("""
+                 **Data**
+
+                 - Cedric's DoseResponse experiment from 26.05.2025 
+                 - 5 different stimulation durations and a control
+             
+                 """), _fig]),
+                 mo.md(r"""
+                 **Normalization**
+             
+                 - 1) Convert raw intensities to a fraction $\frac{I_{Ring}}{I_{Nuc}}$
+              
+                 - 2) Subtract baseline from each cell (as it represents cell's 'background' level of active ERK)
+ 
+                 - 2.5) IDEA: remove cells over some threshold of variability in first X frames?
+ 
+                 - 3) Scaled magintude of each fraction by the max value of its group (stimulation duration)
+
+             
+             
+                 """)
+             ],widths=(0.5, 0.5)) 
+              ])
+    return
+
+
 @app.cell
 def _(mo):
-    mo.md(
+
+    # _fig, _ax = plt.subplots(figsize=(8, 5), dpi=120)
+    # #plt.subplots_adjust(wspace=0.5,hspace=0.5)
+    # plt.tight_layout()
+
+
+    # _ax.plot([0,1], [0,0], label='reference')
+    # _ax.plot([0,50*(1/60)*(1/100)], [1,1], label='50ms')
+
+    # _ax.set_title(f"Experiment data")
+    # _ax.set_xlabel("Time")
+    # _ax.set_xlim((0,1))
+    # _ax.set_ylabel("Fraction of active ERK, baseline-normalized")
+    # _ax.legend(loc=1)
+    # _ax.grid(True)
+
+    mo.vstack([
+        mo.md(
         r"""
-    # Ordinary Differential Equations
-    ## Why ODEs and not other differential equations?
+    ### Light function and the problems of scale
+
+    - The time scale on which groups differ from themselves (ms) is **completely** different from the timescale that I have data on (minutes). 
+    - This means, that if i want to use this data for fitting, my system in the 'default' state won't be able to distinguish between groups.
+    - How can we fix that?
+        - Interpolate a lot of points from current data; Enough to make resolution of smallest pulse (50ms) visible. 
+        - Make our $light$ variable inside the model not a perfect representation of real light, but a proxy that enables us to use original data resolution, but conveys information about difference in energy delivered.
+    
     """
-    )
+        )])
+
     return
 
 
@@ -215,69 +274,46 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-    # My approach
-    ## Basics
+    ### Light function and the problems of scale
 
-    • Equations
+    - The time scale on which groups differ from themselves (ms) is **completely** different from the timescale that I have data on (minutes). 
+    - This means, that if i want to use this data for fitting, my system in the 'default' state won't be able to distinguish between groups.
+    - How can we fix that?
+        - Interpolate a lot of points from current data; Enough to make resolution of smallest pulse (50ms) visible. 
+        - Make our $light$ variable inside the model not a perfect representation of real light, but a proxy that enables us to use original data resolution, but conveys information about difference in energy delivered.
     """
     )
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
-    # My approach
-    ## Assumptions in practice
-
-    • Spatial aspect (assumption of perfect mixing)
-    """
-    )
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        r"""
-    # My approach
-    ## Assumptions in practice
-
-    • Spatial aspect
-    • Baseline values
-    """
-    )
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        r"""
-    ### My approach: Assumptions in practice
+    ### Transformed model showcase
 
     • Conserved moieties
-    • Fits over summary statistic (losing variance in the process)
     """
     )
     return
 
 
 @app.cell
-def _(mo):
-    mo.md(
-        r"""
-    # My approach
-    ## Transformed model showcase
-
-    • Conserved moieties
-    """
-    )
+def _(ax, light_intensity):
+    ax.set_title(f"EGFR Pathway Simulation (param={light_intensity})")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Concentration")
+    ax.legend(loc=1)
+    ax.grid(True)
     return
 
 
 @app.cell
+def _():
+    return
+
+
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -288,7 +324,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -299,13 +335,13 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""### My approach to fitting""")
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -316,7 +352,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -329,7 +365,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -342,16 +378,16 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("""# EGFR Pathway Simulation""")
     return
 
 
 @app.cell
-def _(DATA_PATH, pd):
-    df = pd.read_csv(DATA_PATH / 'data_transient_v2.csv', index_col=False)
-    return (df,)
+def _():
+    #df = pd.read_csv(DATA_PATH / 'data_transient_v5.csv', index_col=False)
+    return
 
 
 @app.cell(disabled=True)
@@ -429,7 +465,7 @@ def merge_params(m, mo, param_defaults, sliders):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def input(mo):
     mo.md(
         """
@@ -457,7 +493,7 @@ def input_plot(light_func, mo, np, plt):
     return input_plot_widget, t_vals
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     return
 
@@ -536,10 +572,10 @@ def simulation(
         "Others":[input_plot_widget, plot_original_widget]
     })
     mo.hstack([ctrls,fig], widths=[0.3,0.7], gap="1rem")
-    return (sol,)
+    return ax, sol
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     return
 
@@ -568,6 +604,12 @@ def _(pd, sol):
     state_names = ['RAS_s', 'RAF_s', 'MEK_s',  'NFB_s', 'ERK_s']
     df_sol = sol_to_df(sol, state_names)
     df_sol
+    return
+
+
+@app.cell
+def _(df):
+    df
     return
 
 
