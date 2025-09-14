@@ -390,23 +390,8 @@ def _(RESULTS_PATH, mo, os):
 
 @app.cell
 def _(RESULTS_PATH, m, param_widget):
-    #from simulation import param_defaults
-    import json
-
-
-    #dp = param_defaults.copy()
-    with open(RESULTS_PATH/ param_widget.value, 'r') as f:
-        dp = json.load(f)
-        test = dp.get('K12')
-        test2 = dp.get('fitted_params')
-        if test is not None:
-            p = dp
-            dp = {k: p[k] for k in m.parameters} 
-        if test is None and test2 is None:
-            dp = dp.get("params")
-        if test is None and test2 is not None:
-            p = dp.get('fitted_params')
-            dp = {k: p[k] for k in m.parameters} 
+    # Use the new read_config function to load parameters from any JSON format
+    dp = m.read_config(RESULTS_PATH / param_widget.value)
     dp
     return (dp,)
 

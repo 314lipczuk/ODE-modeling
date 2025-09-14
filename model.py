@@ -83,35 +83,33 @@ class Model:
             
         return system
 
-    def fit(self, dataframe, y0, p0, t_args, params_to_fit, params_to_fix): 
+    def fit(self, dataframe, y0, parameters, t_args=None):
         """
-        TODO: simplify, rethink: 
-            - do i really need both p0 and params_to_fit?   
-            - validity of params_to_fix when i have transforms
-
         Fit model parameters to experimental data.
-        
+
         Parameters:
         -----------
         dataframe : pd.DataFrame
             Must contain columns:
             - 'time': float, time points in seconds
-            - 'y': float, observed values (e.g., KTR levels)  
+            - 'y': float, observed values (e.g., KTR levels)
             - 'group': str/int, experiment/cell identifier for grouping
         y0 : array_like
             Initial conditions for the ODE system
-        p0 : array_like  
-            Initial parameter values (fallback for unfitted parameters)
-        t_args : list
+        parameters : dict or str or PosixPath
+            If dict: {param_name: initial_value} for parameters to optimize
+            If str or PosixPath: path to JSON config file with parameter defaults
+        t_args : dict
             Arguments to pass to the time-dependent function (e.g., light intensity)
-        params_to_fit : dict
-            {param_name: initial_guess} for parameters to optimize
-        params_to_fix : dict, optional
-            {param_name: fixed_value} for parameters to keep constant
         """
-        if params_to_fix is None: 
-            params_to_fix = {}
-        
+        # Handle parameters input - could be dict, str, or PosixPath
+        config_path = None
+        if isinstance(parameters, (str, Path)):
+            config_path = Path(parameters)
+            parameters = self.read_config(config_path)
+        elif not isinstance(parameters, dict):
+            raise ValueError("parameters must be dict, str, or PosixPath")
+
         if t_args is None:
             t_args = {}
         else:
@@ -123,9 +121,8 @@ class Model:
             missing = required_cols - set(dataframe.columns)
             raise ValueError(f"DataFrame missing required columns: {missing}")
 
-        self.params_to_fit = params_to_fit
-        self.params_to_fix = params_to_fix
-        param_names = list(params_to_fit.keys())
+        self.parameters_to_fit = parameters
+        param_names = list(parameters.keys())
         
         # Get the numerical system
         system = self.make_numerical()
@@ -139,17 +136,16 @@ class Model:
             # Build parameter vector for this model only
             p_full_list = []
 
-            # Start with provided p0 values
+            # Build parameter vector maintaining order from self.parameters
             for i, param_name in enumerate(self.parameters):
-                if param_name in params_to_fit:
+                if param_name in parameters:
                     # Find which fitted parameter this is
                     fit_idx = param_names.index(param_name)
                     p_full_list.append(p_fit_values[fit_idx])
-                elif param_name in params_to_fix:
-                    p_full_list.append(params_to_fix[param_name])
                 else:
-                    # Use default from p0
-                    p_full_list.append(p0[i] if i < len(p0) else 1.0)
+                    # Use default value of 1.0 for unfitted parameters
+                    print("Parameter in supplied defaults not found: ", param_name)
+                    p_full_list.append(1.0)
             
             p_full = np.array(p_full_list)
             
@@ -184,7 +180,7 @@ class Model:
             
             return total_loss
         
-        p_init = [params_to_fit[name] for name in param_names]
+        p_init = [parameters[name] for name in param_names]
 
         # Choose objective and bounds based on optimizer
         use_log_transform = self.minimizer_method in ['L-BFGS-B', 'trust-constr', 'SLSQP']
@@ -248,10 +244,10 @@ class Model:
             for i, param_name in enumerate(self.parameters):
                 if param_name in fitted_params:
                     p_full_list.append(fitted_params[param_name])
-                elif param_name in params_to_fix:
-                    p_full_list.append(params_to_fix[param_name])
                 else:
-                    p_full_list.append(p0[i] if i < len(p0) else 1.0)
+                    # Use default value of 1.0 for unfitted parameters
+                    print("Parameter in supplied defaults not found: ", param_name)
+                    p_full_list.append(1.0)
 
             p_full = np.array(p_full_list)
             t_args_copy = t_args.copy() if t_args else {}
@@ -287,7 +283,8 @@ class Model:
         aic = 2 * n_fitted_params + n_data_points * np.log(result.fun / n_data_points) if result.fun > 0 else np.inf
         bic = np.log(n_data_points) * n_fitted_params + n_data_points * np.log(result.fun / n_data_points) if result.fun > 0 else np.inf
 
-        self.fit_result = {
+        # Build fit result with new structure
+        fit_result_data = {
             'fitted_params': fitted_params,
             'loss': result.fun,
             'success': result.success,
@@ -310,13 +307,141 @@ class Model:
                 'n_fitted_params': n_fitted_params,
                 'group_statistics': group_stats
             },
-            'params':{
-                "to_fix": params_to_fix,
-                "to_fit": params_to_fit,
+            'params': {
+                "fitted": parameters,
                 "all": self.parameters
             }
         }
+
+        # Add config path if parameters were loaded from file
+        if config_path is not None:
+            fit_result_data['config_path'] = str(config_path)
+
+        self.fit_result = fit_result_data
         return self.fit_result
+
+    def read_config(self, config_path):
+        """
+        Read parameter configuration from JSON file.
+
+        Handles different JSON structures:
+        1. Simple dict: {param_name: value, ...}
+        2. Result structure with 'params': {params: {...}}
+        3. Result structure with 'fitted_params': {fitted_params: {...}}
+        4. Complex nested structures
+
+        Parameters:
+        -----------
+        config_path : Path or str
+            Path to JSON configuration file
+
+        Returns:
+        --------
+        dict
+            Dictionary with {param_name: value} for parameters in self.parameters
+        """
+        config_path = Path(config_path)
+
+        with open(config_path, 'r') as f:
+            data = json.load(f)
+
+        # Strategy: try different extraction methods in order of preference
+        params_dict = None
+
+        # 1. Try simple dict (most common for pure parameter files)
+        if self._is_simple_param_dict(data):
+            params_dict = data
+
+        # 2. Try 'fitted_params' key first (most direct from fit results)
+        elif 'fitted_params' in data and isinstance(data['fitted_params'], dict):
+            params_dict = data['fitted_params']
+
+        # 3. Try 'params' key (common in some result formats)
+        elif 'params' in data and isinstance(data['params'], dict):
+            # Check if params has nested structure with 'to_fit'
+            if 'to_fit' in data['params'] and isinstance(data['params']['to_fit'], dict):
+                params_dict = data['params']['to_fit']
+            else:
+                params_dict = data['params']
+
+        # 4. Try 'meta'.'fitted_params' (nested structure)
+        elif 'meta' in data and isinstance(data['meta'], dict) and 'fitted_params' in data['meta']:
+            params_dict = data['meta']['fitted_params']
+
+        # 5. Last resort: look for any dict that contains parameter-like keys
+        else:
+            params_dict = self._extract_params_from_nested(data)
+
+        if params_dict is None:
+            raise ValueError(f"Could not extract parameters from {config_path}")
+
+        # Filter to only parameters that exist in self.parameters (maintain order consistency)
+        filtered_params = {param: params_dict[param]
+                          for param in self.parameters
+                          if param in params_dict}
+
+        if not filtered_params:
+            available_params = list(params_dict.keys())
+            raise ValueError(f"No matching parameters found in config. "
+                           f"Config contains: {available_params}, "
+                           f"Model expects: {self.parameters}")
+
+        print(f"Loaded {len(filtered_params)} parameters from {config_path}")
+        missing_params = set(self.parameters) - set(filtered_params.keys())
+        if missing_params:
+            print(f"Missing parameters (will use defaults): {missing_params}")
+
+        return filtered_params
+
+    def _is_simple_param_dict(self, data):
+        """Check if data is a simple parameter dictionary"""
+        if not isinstance(data, dict):
+            return False
+
+        # Simple heuristics:
+        # - All values are numbers
+        # - No nested dicts with metadata-like keys
+        metadata_keys = {'fitted_params', 'params', 'meta', 'loss', 'success',
+                        'message', 'optimization_info', 'fit_statistics'}
+
+        has_metadata = any(key in data for key in metadata_keys)
+        all_numeric = all(isinstance(v, (int, float)) for v in data.values())
+
+        return not has_metadata and all_numeric
+
+    def _extract_params_from_nested(self, data):
+        """Extract parameters from nested structure as last resort"""
+        if not isinstance(data, dict):
+            return None
+
+        # Look for any dict that contains parameter names from self.parameters
+        def search_for_params(obj, path=""):
+            if isinstance(obj, dict):
+                # Check if this dict contains any of our parameter names
+                matches = sum(1 for param in self.parameters if param in obj)
+                if matches > 0:
+                    return obj, matches, path
+
+                # Recursively search nested dicts
+                best_match = None
+                best_count = 0
+                best_path = ""
+
+                for key, value in obj.items():
+                    result = search_for_params(value, f"{path}.{key}" if path else key)
+                    if result and result[1] > best_count:
+                        best_match, best_count, best_path = result
+
+                return (best_match, best_count, best_path) if best_match else None
+            return None
+
+        result = search_for_params(data)
+        if result:
+            params_dict, match_count, path = result
+            print(f"Found {match_count} matching parameters at path: {path}")
+            return params_dict
+
+        return None
 
     def save_results(self):
         assert self.fit_result is not None, "To save results you gotta have results."

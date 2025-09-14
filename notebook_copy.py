@@ -13,7 +13,7 @@ def _():
     import matplotlib.pyplot as plt
     from utils.utils import DATA_PATH, MODELS_PATH, RESULTS_PATH
     mo.md("# EGFR Pathway Simulation")
-    return DATA_PATH, mo, pd, plt
+    return DATA_PATH, mo, np, pd, plt
 
 
 @app.cell(disabled=True)
@@ -177,6 +177,15 @@ def _(mo, plt, pqt):
     mo.vstack([_fig, ex ], gap="1rem")
 
 
+
+    return
+
+
+@app.cell
+def _(np):
+    from models.simple_EGFR_transient import light_func
+    x= np.linspace(1,60,120)
+    y = np.array([light_func(xx, {'group':50}) for xx in x])
     return
 
 

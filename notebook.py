@@ -31,7 +31,7 @@ def _(DATA_PATH, mo):
 @app.cell
 def _(data_option_widget):
 
-    data_p =  dow if (dow := data_option_widget.value) is not None else 'data_transient_v3.csv'
+    data_p =  dow if (dow := data_option_widget.value) is not None else 'data_transient_v5.csv'
     return
 
 
@@ -91,25 +91,10 @@ def _(RESULTS_PATH, mo):
 
 @app.cell
 def _(RESULTS_PATH, m, param_widget):
-    #from simulation import param_defaults
-    import json
-
-
-    #dp = param_defaults.copy()
-    with open(RESULTS_PATH/ param_widget.value, 'r') as f:
-        dp = json.load(f)
-        test = dp.get('K12')
-        test2 = dp.get('fitted_params')
-        if test is not None:
-            p = dp
-            dp = {k: p[k] for k in m.parameters} 
-        if test is None and test2 is None:
-            dp = dp.get("params")
-        if test is None and test2 is not None:
-            p = dp.get('fitted_params')
-            dp = {k: p[k] for k in m.parameters} 
+    # Use the new read_config function to load parameters from any JSON format
+    dp = m.read_config(RESULTS_PATH / param_widget.value)
     dp
-    return dp, json
+    return (dp,)
 
 
 @app.cell
@@ -159,7 +144,7 @@ def input(mo):
 @app.cell(hide_code=True)
 def input_plot(df, mo, np, plt):
     fig0, (ax1) = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-    t_vals = np.linspace(1, 59, 100)
+    t_vals = np.linspace(1, 59, 200)
     #ax1.plot(t_vals, [light_func(t, {'group':light_intensity}) for t in t_vals])
     #ax1.set_title("light input")
     #ax1.set_xlabel("time")
@@ -345,34 +330,6 @@ def _(pd, sol):
 
 @app.cell
 def _():
-    return
-
-
-@app.cell
-def _():
-    from numpy import log
-    def lf(t, rest=None):
-        # Smooth transitions to avoid solver issues
-        modifier = float(rest['group'])
-        if modifier == 0: return 0
-        base_intensity = 1.0        # Base light intensity
-        max_additional = 1.0        # Maximum additional intensity
-        saturation_point = 200.0    # Modifier value where we reach ~50% of max_additional
-
-        # Sigmoid scaling: smooth saturation
-        modifier = log(modifier)
-        intensity_scale = base_intensity + max_additional * modifier / (modifier + saturation_point)
-
-        if t <= 9+1:
-            return 0
-        elif t <= 9.1+1:  # Smooth rise
-            return intensity_scale * (t - 9) / 0.1
-        elif t <= 10.9+1:  # Plateau
-            return intensity_scale
-        elif t <= 11+1:   # Smooth fall
-            return intensity_scale * (11 - t) / 0.1
-        else:
-            return 0
     return
 
 

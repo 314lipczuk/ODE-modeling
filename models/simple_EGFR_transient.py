@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -65,7 +66,7 @@ def light_func(t, rest=None):
   else:
     return 0
 
-
+from utils.utils import read_parquet_and_clean
 m = Model(name = 'retvrn',
           parameters = param_list,
           states = nodes,
@@ -79,33 +80,28 @@ def test_lightFn():
   result = np.array([light_func(it, {'group':0}) for it in _t])
   assert np.all(result == 0)
 
-  #result = np.array([light_func(it, {'group':50}) for it in _t])
-  #assert np.all(result[-50:-1] == 0)
+  result = np.array([light_func(it, {'group':50}) for it in _t])
+  assert np.all(result[-50:-1] == 0)
 
-  #result = np.array([light_func(it, {'group':50}) for it in _t])
-  #assert np.all(result[0:10] == 0)
+  result = np.array([light_func(it, {'group':50}) for it in _t])
+  assert np.all(result[0:10] == 0)
 
 
 test_lightFn()
-          
 
-from utils.utils import read_parquet_and_clean
 df = read_parquet_and_clean( DATA_PATH / 'exp_data.parquet', save_as= DATA_PATH / 'data_transient_v5.csv')
 df = df.groupby(['group','time']).median('y')
 df.reset_index(inplace=True)
 
 y0 = [0.05] * 5
-import json
-from datetime import datetime
-with open(RESULTS_PATH / 'user_defined_20250913_203158.json', 'r') as f:
-  p0 = json.load(f)
+
 if __name__ == '__main__':
   # Prioritize robust optimizers for biochemical parameter fitting
   #models = ['trust-constr', 'L-BFGS-B', 'SLSQP', 'Nelder-Mead', 'COBYLA', 'TNC']
   models = ['L-BFGS-B','Nelder-Mead']
 
   for mod in models:
-    m = Model(name = f'simple_lf_logged_{mod}',
+    m = Model(name = f'loading_refactored',
           parameters = param_list,
           states = nodes,
           model_definition = model_eqs,
@@ -113,6 +109,6 @@ if __name__ == '__main__':
           t_dep='light'
           )
     print(datetime.now(),'starting fitting....', mod  )
-    m.fit(df,y0,p0, None,p0, None)
+    m.fit(df,y0, parameters=RESULTS_PATH / 'user_defined_20250913_203158.json')
     m.save_results()
     print(f'done w/ {mod} at: ', datetime.now() )
