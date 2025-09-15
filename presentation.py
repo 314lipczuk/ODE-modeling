@@ -32,10 +32,9 @@ def _():
     import pathlib
     mo.md(
         r"""
-    ### Introduction: My goals for this project
+    ### Introduction: Project goals
 
-    - Learn the practicalities of math modeling in general
-    - And ODE modelling in specific
+    - Understand practical aspects of math modeling, especially ODEs
     - Build the understanding of the process of building, validating, and iterating on a model.
     """
     )
@@ -49,7 +48,7 @@ def _(mo):
     ### What is modeling?
 
     - When trying to understand a system, there's only so much we can do by passive observation.
-    - The path of understanding is to generate testable predictions, and validating them on real world data
+    - Understanding comes from generating testable predictions and validating them against data.
     - In here, the model is a computational scheme and its parameters, that we want to tune such that it can reproduce experimental data.
     - "What I can't create, I don't understand" - R.F
     """
@@ -66,9 +65,12 @@ def _(mo):
     - Researching an entire complex system at once is often impossible to do.
     - Why? Physical limitations of technology we have (both on the side of accurate collection of data and computational resources)
     - So we narrow down, and investigate components
-    - PROBLEM: there are no neat abstraction layers / modules / interfaces in biology
+    - PROBLEM: in biological setting:
+        - There is no modular boundaries
         - Everything is connected to everything else
-        - Doesn't it make it impossible to 'Narrow down and investigate components?'
+        - Cell-level mechanisms are incredibly stochastic in nature
+    
+    _Doesn't it make it impossible to 'Narrow down and investigate components?'_
     """
     )
     return
@@ -94,7 +96,7 @@ def _(mo):
 def _(mo):
     mo.hstack([mo.md(
         r"""
-    ### Making the Complex Tractable
+    ### Making the Complex Tractable: My assumptions
 
     **Spatial Homogeneity:**
 
@@ -169,7 +171,7 @@ def _(mo):
         r"""
     ### Ordinary Differential Equations: Fitting
     Given ODE system and a set of experimental data describing one or more of our state variables, we can try to optimize our model parameters, in such a way to minimize difference between our simulation and observations.
-    $$fit = f(model, observations) \rightarrow parameters$
+    $$fit = f(model, observations) \rightarrow parameters$$
     """
     )
     return
@@ -186,6 +188,24 @@ def _(df, dp, m, mo):
             mo.md('# $\\rightarrow$'), 
             mo.vstack([mo.md('Parameters'),dp], align='center')
         ], justify='center', align='center')], justify='center', align='center')
+    return
+
+
+@app.cell
+def _(m, mo):
+
+    mo.vstack([
+        mo.md(
+            r"""
+        ### MAPK/ERK Pathway representations
+        """
+        ),
+        mo.hstack([
+            mo.md('TODO: image of the "graph view" of the pathway'),
+            mo.md('# ='),
+            m.eqs,
+        ], justify='center', align='center'),
+    ])
     return
 
 
@@ -226,9 +246,6 @@ def _(df, mo, plt):
                  - 2.5) IDEA: remove cells over some threshold of variability in first X frames?
  
                  - 3) Scaled magintude of each fraction by the max value of its group (stimulation duration)
-
-             
-             
                  """)
              ],widths=(0.5, 0.5)) 
               ])
@@ -237,21 +254,6 @@ def _(df, mo, plt):
 
 @app.cell
 def _(mo):
-
-    # _fig, _ax = plt.subplots(figsize=(8, 5), dpi=120)
-    # #plt.subplots_adjust(wspace=0.5,hspace=0.5)
-    # plt.tight_layout()
-
-
-    # _ax.plot([0,1], [0,0], label='reference')
-    # _ax.plot([0,50*(1/60)*(1/100)], [1,1], label='50ms')
-
-    # _ax.set_title(f"Experiment data")
-    # _ax.set_xlabel("Time")
-    # _ax.set_xlim((0,1))
-    # _ax.set_ylabel("Fraction of active ERK, baseline-normalized")
-    # _ax.legend(loc=1)
-    # _ax.grid(True)
 
     mo.vstack([
         mo.md(
@@ -264,63 +266,68 @@ def _(mo):
         - Interpolate a lot of points from current data; Enough to make resolution of smallest pulse (50ms) visible. 
         - Make our $light$ variable inside the model not a perfect representation of real light, but a proxy that enables us to use original data resolution, but conveys information about difference in energy delivered.
     
-    """
-        )])
+    """),
+        mo.md("**TODO: some visualization**")])
 
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        r"""
-    ### Light function and the problems of scale
-
-    - The time scale on which groups differ from themselves (ms) is **completely** different from the timescale that I have data on (minutes). 
-    - This means, that if i want to use this data for fitting, my system in the 'default' state won't be able to distinguish between groups.
-    - How can we fix that?
-        - Interpolate a lot of points from current data; Enough to make resolution of smallest pulse (50ms) visible. 
-        - Make our $light$ variable inside the model not a perfect representation of real light, but a proxy that enables us to use original data resolution, but conveys information about difference in energy delivered.
-    """
-    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-    ### Transformed model showcase
 
-    • Conserved moieties
-    """
-    )
+    mo.vstack([
+        mo.md('### Light function: tradeoffs'),
+        mo.hstack([
+            mo.md(
+                r"""
+            #### Interpolation
+            Interpolation idea creates a lot of synthetic data points, which assume linearity (or whatever other relation we choose). The problem is, this relation is
+            
+            - 1) human-defined
+            - 2) not necesserily true; therefore contributing to error of our model.
+                """),
+            mo.md(
+                r"""
+            
+            #### Proxy $light$ variable
+            This solution lets us bypass resolution issue, but creates its own problems. The extreme values of `stimulation_time` still differ by two orders of magnitude (50 vs 1000); creating a proxy function that handles such variance is non trivial problem just by itself. Knowing that our pipeline uses numerical solvers, we also should consider a function that will deliver a continous codomain.   
+                """),
+        
+        ], widths=(0.5,0.5))
+    ])
+
     return
 
 
 @app.cell
-def _(ax, light_intensity):
-    ax.set_title(f"EGFR Pathway Simulation (param={light_intensity})")
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Concentration")
-    ax.legend(loc=1)
-    ax.grid(True)
-    return
-
-
-@app.cell
-def _():
-    return
-
-
-@app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-    # My approach
-    ## Simulation presentation
-    """
-    )
+
+
+    mo.vstack([
+        mo.md('### Light function: tradeoffs'),
+        mo.hstack([
+            mo.md(
+                r"""
+            #### Interpolation
+            Interpolation idea creates a lot of synthetic data points, which:
+        
+            - assumes linearity (or other relation); not necessarily true
+            - contributes to error of our model.
+                """),
+            mo.md(
+                r"""
+            
+            #### Proxy $light$ variable
+            - bypasses resolution issue,but creates its own problems 
+            - extreme values of `stimulation_time` still differ by two orders of magnitude (50 vs 1000);
+            - creating a proxy metric w/ such variance is non trivial problem by itself.
+            - Knowing that our pipeline uses numerical solvers, we also should consider a function that will deliver a continous codomain.   
+                """),
+        
+        ], widths=(0.5,0.5)),
+        mo.md("In the end, I picked *proxy light function* as a better solution, due to bigger expressivity and performance reasons")
+    
+    ])
     return
 
 
@@ -572,7 +579,7 @@ def simulation(
         "Others":[input_plot_widget, plot_original_widget]
     })
     mo.hstack([ctrls,fig], widths=[0.3,0.7], gap="1rem")
-    return ax, sol
+    return (sol,)
 
 
 @app.cell(hide_code=True)
