@@ -31,8 +31,10 @@ def read_parquet_and_clean(file, save_as=None):
     assert str(file).endswith('.parquet')
     assert (save_as is None) or (type(save_as) == str and save_as.endswith('.csv') or (type(save_as)==PosixPath and save_as.name.endswith('.csv')))
     ex = pd.read_parquet(file, )
-    ring = ex["mean_intensity_C1_ring"].astype(float)
-    nuc  = ex["mean_intensity_C1_nuc"].astype(float)
+    ex = ex[ex['cell_line'] == "EGFR"]
+
+    ring = ex["median_intensity_C1_ring"].astype(float)
+    nuc  = ex["median_intensity_C1_nuc"].astype(float)
 
     # unique cell id
     ex["uid"] = ex["fov"].astype(str) + "_" + ex["particle"].astype(str)

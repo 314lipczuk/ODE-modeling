@@ -161,11 +161,6 @@ def input_plot(df, mo, np, plt):
 
 
 @app.cell
-def _():
-    return
-
-
-@app.cell
 def _(m, np, sliders):
 
     p_full = np.zeros(len(m.parameters))
@@ -239,6 +234,7 @@ def simulation(
     light_func,
     m,
     mo,
+    np,
     p_full,
     pick_light_intensity_to_plot,
     plot_nodes,
@@ -266,7 +262,8 @@ def simulation(
 
     if (ylim := ylim_w.value) != "" and float(ylim):
         ax.set_ylim(top=float(ylim))
-
+    if light_intensity != 0 and np.mean(sol.y[-1]) < 0.01:
+        ax.text(0.5,0.5,'Numerical instability detected', horizontalalignment='center',verticalalignment='center', transform=ax.transAxes)
     for i, name in enumerate(m.active_states):
         if name in plot_nodes.value:
             ax.plot(sol.t, sol.y[i], label=name)
@@ -297,11 +294,6 @@ def simulation(
 
 
 @app.cell
-def _():
-    return
-
-
-@app.cell
 def _(sol):
     sol.t.shape
     return
@@ -325,11 +317,6 @@ def _(pd, sol):
     state_names = ['RAS_s', 'RAF_s', 'MEK_s',  'NFB_s', 'ERK_s']
     df_sol = sol_to_df(sol, state_names)
     df_sol
-    return
-
-
-@app.cell
-def _():
     return
 
 
@@ -471,6 +458,26 @@ def _(dp, mo, np, plt):
                 f'{_val:.4f}', ha='center', va='bottom', fontsize=9)
 
     plt.tight_layout()
+    return
+
+
+@app.cell
+def _(DATA_PATH, np, plt):
+    from experiments.ramp import ramp_light_fn, read_parquet_and_clean as rpac
+    #from utils.utils import read_parquet_and_clean
+
+    _df = rpac(DATA_PATH / 'data_ramp.parquet')
+    _df = _df.groupby(['group','time']).median('y')
+    _df.reset_index(inplace=True)
+    _x= np.linspace(1,60,120)
+
+    _fig, _ax = plt.subplots(figsize=(8, 5), dpi=120)
+    for _i in _df['stim_exposure'].unique():
+        _y = np.array([ramp_light_fn(xx, {'group':_i}) for xx in _x])
+        _ax.plot(_x+_i,_y)
+    #_df
+    _fig
+
     return
 
 

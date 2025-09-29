@@ -49,6 +49,7 @@ class Model:
         model = model_definition(parameters, states)
         self.eqs = model['equations']
         self.symbols = model['symbols']
+        self.base_equations = model['base_equations']
         assert type(t_dep) == str and t_dep in self.symbols.keys(), 'time-dependant variable must exist within equations'
         self.ivp_method = ivp_method
         self.minimizer_method = minimizer_method
