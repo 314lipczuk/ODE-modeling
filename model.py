@@ -116,6 +116,8 @@ class Model:
         else:
             assert type(t_args) == dict, "t_args need to be a dictionary \
                 (so i can automatically put generic keys in there, like a group_id)"
+
+        base_t_args = dict(t_args)
         # Validate input dataframe
         required_cols = {'time', 'y', 'group'}
         if not required_cols.issubset(dataframe.columns):
@@ -159,10 +161,14 @@ class Model:
                 
                 times = group_data['time'].values
                 observed_data = group_data['y'].values
-                t_args['group'] = group_id
+
+                meta_cols = [col for col in group_data.columns if col not in {'time', 'y'}]
+                group_meta = {col: group_data.iloc[0][col] for col in meta_cols}
+                current_t_args = {**base_t_args, **group_meta}
+
                 try:
                     sol = solve_ivp(
-                        lambda t, y: system(t, y, p_full, self.t_func, t_args),
+                        lambda t, y: system(t, y, p_full, self.t_func, current_t_args),
                         [times[0], times[-1]], y0, 
                         t_eval=times, method=self.ivp_method, rtol=1e-8
                     )
@@ -251,8 +257,9 @@ class Model:
                     p_full_list.append(1.0)
 
             p_full = np.array(p_full_list)
-            t_args_copy = t_args.copy() if t_args else {}
-            t_args_copy['group'] = group_id
+            meta_cols = [col for col in group_data.columns if col not in {'time', 'y'}]
+            group_meta = {col: group_data.iloc[0][col] for col in meta_cols}
+            t_args_copy = {**base_t_args, **group_meta}
 
             try:
                 sol = solve_ivp(
@@ -451,5 +458,3 @@ class Model:
         from pprint import pprint
         pprint(self.fit_result)
         with open(path, 'w') as f: json.dump(self.fit_result, f, indent=2)
-
-            

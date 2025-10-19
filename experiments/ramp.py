@@ -4,14 +4,20 @@ import numpy as np
 from utils.utils import DATA_PATH
 
 def ramp_light_fn(t, rest):
-  delta_t = 0.2
+    # Smooth transition half-width
+    delta_t = 0.2
 
-  if (10-delta_t) < t < (10+delta_t): 
-    modifier = float(rest['stim_exposure'])
-    if modifier == 0: return 0
-    log_modifier = np.log(modifier)
-    return log_modifier - log_modifier * (np.abs(10-t)/delta_t)
-  else:
+    if  t < 10 or t > 150: return 0
+    # Loop through all activation times
+    for ti in range(10, 151):  # inclusive of 150
+        if (ti - delta_t) < t < (ti + delta_t):
+            modifier = float(rest['stim_exposure'])
+            if modifier == 0:
+                return 0
+            log_modifier = np.log(modifier)
+            return log_modifier - log_modifier * (np.abs(ti - t) / delta_t)
+
+    # If t not near any activation integer
     return 0
 
 
@@ -20,29 +26,40 @@ def read_parquet_and_clean(file, save_as=None):
     assert (save_as is None) or (type(save_as) == str and save_as.endswith('.csv') or (type(save_as)==PosixPath and save_as.name.endswith('.csv')))
     ex = pd.read_parquet(file, )
     ex = ex[ex['cell_line'] == "EGFR"]
-    ring = ex["median_intensity_C1_ring"].astype(float)
-    nuc  = ex["median_intensity_C1_nuc"].astype(float)
 
     # unique cell id
     ex["uid"] = ex["fov"].astype(str) + "_" + ex["particle"].astype(str)
 
-
     # time
     ex["time"] = ex["timestep"]
 
-    # compute fraction
+    # completeness filter: keep UIDs with near-full trajectories
+    frame_counts = ex["uid"].value_counts()
+    if len(frame_counts) > 0:
+        threshold = int(np.floor(0.9 * frame_counts.max()))
+        valid_uids = frame_counts[frame_counts >= threshold].index
+        ex = ex[ex["uid"].isin(valid_uids)].copy()
+
+    # compute fraction (recompute ring/nuc AFTER filtering to keep index aligned)
     eps = 1e-12
+    ring = ex["median_intensity_C1_ring"].astype(float)
+    nuc  = ex["median_intensity_C1_nuc"].astype(float)
     ex["fraction"] = ring / (ring + nuc + eps)
 
-    # compute baseline mean and std per uid (frames < 10s)
-    baseline = ex[ex["time"] < 10].groupby("uid")["fraction"].agg(["mean","std"]).reset_index()
-    baseline.rename(columns={"mean":"baseline_mean","std":"baseline_std"}, inplace=True)
+    # compute baseline mean and std per uid using frames strictly before 10s
+    baseline = (
+        ex[ex["time"] < 10]
+          .groupby("uid")["fraction"]
+          .agg(["mean", "std"]).reset_index()
+    )
+    baseline.rename(columns={"mean": "baseline_mean", "std": "baseline_std"}, inplace=True)
     baseline["baseline_std"] = baseline["baseline_std"].fillna(0.0) + eps
 
     # TODO: IDEA: remove cells that have too high variability in the first X frames?
 
-    # merge baseline stats back
+    # merge baseline stats back and DROP cells without a pre-10s baseline
     ex = ex.merge(baseline, on="uid", how="left")
+    ex = ex[ex["baseline_mean"].notna()].copy()
 
     # normalized variants
     ex["frac_sub"] = ex["fraction"] - ex["baseline_mean"]                      # delta
@@ -50,9 +67,14 @@ def read_parquet_and_clean(file, save_as=None):
     ex["group"] = 1
     ex["stim_exposure"] = ex["stim_exposure"].astype(int)
 
-    ex['y'] = ex.groupby('group')['frac_sub'].transform(lambda x: x / x.max())
+    # robust normalization within (group, stim_exposure) and NaN handling
+    denom = ex.groupby(['group', 'stim_exposure'])["frac_sub"].transform('max')
+    denom = denom.replace([0, np.inf, -np.inf], np.nan)
+    ex['y'] = ex['frac_sub'] / denom
+    ex = ex.dropna(subset=['y'])
 
-    ex.drop(axis=1, columns=ex.columns.difference(['time','group', 'y', 'stim_exposure' ]), inplace=True)
+    #ex.drop(axis=1, columns=ex.columns.difference(['time','group', 'y', 'stim_exposure' ]), inplace=True)
+    #ex.sort_index('time')
 
     if save_as is not None: ex.to_csv(DATA_PATH / save_as, index=False)
 

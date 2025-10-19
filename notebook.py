@@ -253,7 +253,6 @@ def simulation(
 
 
     light_intensity = litp if (litp := pick_light_intensity_to_plot.value) is not None else 200
-    print(light_intensity)
     sol = solve_ivp(
         lambda t, y: system(t, y, p_full, light_func, {'group': light_intensity}),
         (1, 59), y0, rtol=1e-4, atol=1e-7, t_eval=t_vals)
@@ -462,22 +461,21 @@ def _(dp, mo, np, plt):
 
 
 @app.cell
-def _(DATA_PATH, np, plt):
+def _(DATA_PATH, np):
     from experiments.ramp import ramp_light_fn, read_parquet_and_clean as rpac
     #from utils.utils import read_parquet_and_clean
 
     _df = rpac(DATA_PATH / 'data_ramp.parquet')
-    _df = _df.groupby(['group','time']).median('y')
+    #_df = _df.groupby(['group','time']).median('y')
     _df.reset_index(inplace=True)
     _x= np.linspace(1,60,120)
 
-    _fig, _ax = plt.subplots(figsize=(8, 5), dpi=120)
-    for _i in _df['stim_exposure'].unique():
-        _y = np.array([ramp_light_fn(xx, {'group':_i}) for xx in _x])
-        _ax.plot(_x+_i,_y)
-    #_df
-    _fig
-
+    #_fig, _ax = plt.subplots(figsize=(8, 5), dpi=120)
+    #for _i in _df['stim_exposure'].unique():
+    #    _y = np.array([ramp_light_fn(xx, {'group':_i}) for xx in _x])
+    #    _ax.plot(_x+_i,_y)
+    _df
+    #_fig
     return
 
 
