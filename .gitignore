@@ -4,3 +4,7 @@ __pycache__
 .claude
 data
 .vscode
+results
+experimental_notebooks
+.ipynb_checkpoints
+static
