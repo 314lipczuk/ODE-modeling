@@ -3,7 +3,7 @@ from pathlib import Path, PosixPath
 import numpy as np
 from utils.utils import DATA_PATH
 
-def ramp_light_fn(t, rest):
+def ramp_light_fn_baseline(t, rest):
     # Smooth transition half-width
     delta_t = 0.2
 
@@ -20,6 +20,19 @@ def ramp_light_fn(t, rest):
     # If t not near any activation integer
     return 0
 
+from math import log
+
+def ramp_light_fn_withlog(t, rest=None):
+    if t < 10 or t > 150: return 0
+    r = np.log1p((t-10) / 140 * 700 )
+    return r / 6.54
+
+def ramp_light_fn_linear(t, rest=None):
+    if t < 10 or t > 150: return 0
+    r = (t-10) / 140 * 6
+    return  r / 5.98
+
+light_fn = ramp_light_fn_linear
 
 def read_parquet_and_clean(file, save_as=None):
     assert str(file).endswith('.parquet')

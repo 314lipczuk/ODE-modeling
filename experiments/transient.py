@@ -1,33 +1,28 @@
-import pandas as pd
-from pathlib import Path, PosixPath
 import numpy as np
+from pathlib import PosixPath
 from utils.utils import DATA_PATH
+import pandas as pd
 
-margin = 3
-start = 10
-end = 150
-scaling = {
-  "weak":0,
-  "medium":0.9,
-  "strong":1,
-}
+def light_func(t, rest=None):
+  # Smooth transitions to avoid solver issues
+  delta_t = 0.2
 
-def sustained_light_fn(t, rest):
-    scaling_ = scaling[rest['group']]
-    if t < start or t > end or scaling_ == 'weak': return 0
-    elif t < start+margin: 
-      return (scaling_/margin)*(t-start)
-    elif t > end-margin: 
-      return (scaling_/margin)*(end-t)
-    return scaling_
+  if (10-delta_t) < t < (10+delta_t): 
+    modifier = float(rest['group'])
+    if modifier == 0: return 0
+    log_modifier = np.log(modifier)
+    return log_modifier - log_modifier * (np.abs(10-t)/delta_t)
+  else:
+    return 0
 
-light_fn = sustained_light_fn
+light_fn = light_func
 
 def read_parquet_and_clean(file, save_as=None):
     assert str(file).endswith('.parquet')
     assert (save_as is None) or (type(save_as) == str and save_as.endswith('.csv') or (type(save_as)==PosixPath and save_as.name.endswith('.csv')))
     ex = pd.read_parquet(file, )
     ex = ex[ex['cell_line'] == "EGFR"]
+
     ring = ex["median_intensity_C1_ring"].astype(float)
     nuc  = ex["median_intensity_C1_nuc"].astype(float)
 
@@ -54,14 +49,12 @@ def read_parquet_and_clean(file, save_as=None):
     # normalized variants
     ex["frac_sub"] = ex["fraction"] - ex["baseline_mean"]                      # delta
 
-    ex["group"] = ex['stim_strength']
+    ex["group"] = ex["stim_exposure"].astype(int)
 
     ex['y'] = ex.groupby('group')['frac_sub'].transform(lambda x: x / x.max())
 
-    ex.drop(axis=1, columns=ex.columns.difference(['time','group', 'y', ]), inplace=True)
+    ex.drop(axis=1, columns=ex.columns.difference(['time','group', 'y' ]), inplace=True)
 
     if save_as is not None: ex.to_csv(DATA_PATH / save_as, index=False)
 
     return ex
-
-    

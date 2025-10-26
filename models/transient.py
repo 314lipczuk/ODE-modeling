@@ -11,6 +11,8 @@ from sympy.abc import t
 import numpy as np
 from utils.utils import DATA_PATH, RESULTS_PATH
 
+from experiments.transient import read_parquet_and_clean, light_func
+
 def model_eqs(params: List[str], states: List[str]) -> EquationDescription:
     symbols_dict = {}
     
@@ -54,27 +56,6 @@ def flatten_extend(matrix):
 
 nodes = flatten_extend([ [f'{node}_s',node ] for node in  ["RAS", "RAF", "MEK",  "NFB", "ERK"]] )
 
-def light_func(t, rest=None):
-  # Smooth transitions to avoid solver issues
-  delta_t = 0.2
-
-  if (10-delta_t) < t < (10+delta_t): 
-    modifier = float(rest['group'])
-    if modifier == 0: return 0
-    log_modifier = np.log(modifier)
-    return log_modifier - log_modifier * (np.abs(10-t)/delta_t)
-  else:
-    return 0
-
-from utils.utils import read_parquet_and_clean
-m = Model(name = 'retvrn',
-          parameters = param_list,
-          states = nodes,
-          model_definition = model_eqs,
-          t_func = light_func,
-          t_dep='light'
-          )
-
 def test_lightFn():
   _t = np.linspace(0,60, 150)
   result = np.array([light_func(it, {'group':0}) for it in _t])
@@ -93,12 +74,12 @@ df = read_parquet_and_clean( DATA_PATH / 'exp_data.parquet', save_as= DATA_PATH 
 df = df.groupby(['group','time']).median('y')
 df.reset_index(inplace=True)
 
-y0 = [0.05] * 5
 
 if __name__ == '__main__':
   # Prioritize robust optimizers for biochemical parameter fitting
   #models = ['trust-constr', 'L-BFGS-B', 'SLSQP', 'Nelder-Mead', 'COBYLA', 'TNC']
-  models = ['L-BFGS-B','Nelder-Mead']
+  y0 = [0.05] * 5
+  models = ['L-BFGS-B'] #,'Nelder-Mead']
 
   for mod in models:
     m = Model(name = f'loading_refactored',

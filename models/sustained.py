@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 from scipy.integrate import solve_ivp
 
-from simple_EGFR_transient import model_eqs, param_list, nodes
+from models.transient import model_eqs, param_list, nodes
 from experiments.sustained import read_parquet_and_clean , sustained_light_fn, scaling
 from utils.utils import DATA_PATH, RESULTS_PATH
 from model import Model
@@ -95,12 +95,10 @@ if __name__ == '__main__':
     plt.close(fig)
     print(f'Saved data overview plot to {_plot_path}')
     
-    
-
     ax.set_label(name)
     fig.savefig(RESULTS_PATH / f'{name}.png')
-
 
 # Note: Intro to AI; 21.10.2025  
 # slide 59 -> what is the relationship between these two conditions; cna you go back to general case
 # everything up to MRW from lec 4 is on midterm
+

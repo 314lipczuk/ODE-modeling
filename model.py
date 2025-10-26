@@ -9,8 +9,6 @@ from scipy.integrate import solve_ivp
 from pathlib import Path
 from utils.utils import RESULTS_PATH
 import json
-from jax import grad
-import jax.numpy as jnp
 
 class EquationDescription(TypedDict):
     equations:List[Equality]
@@ -31,7 +29,7 @@ class Model:
     params = []    
     eqs = []
     fit_result = None
-    def __init__(self, name, states, parameters, model_definition, t_func, t_dep, ivp_method='LSODA', minimizer_method='L-BFGS-B'):
+    def __init__(self, name, states, parameters, model_definition, t_func, t_dep, ivp_method='LSODA', minimizer_method='L-BFGS-B', group_to_light=None):
         '''
         We give it a name, we give it all the symbolic equations, and params (defaults?)
 
@@ -42,7 +40,9 @@ class Model:
 
         What's a good API to insert EQs? Do i need to input symbol for t?           
         '''
+        assert (single_tf := t_func is not None) != (multi_tf := group_to_light is not None) and (single_tf or multi_tf), "Either single time function or multi-time function"
         self.name = name
+        self.group_to_light = group_to_light
         self.states = states
         self.parameters = parameters
         self.model_definition_f = model_definition
@@ -79,12 +79,15 @@ class Model:
 
         def system(t, y, params, t_func, t_args=None):
             res = t_func(t, t_args)
+            # This here is hella expensive. Get rid of this.
+            #y = np.asarray(y, dtype=np.float32)
             args = [t, *y, *params, res]
             return [f(*args) for f in numerical_funcs]
             
         return system
 
     def fit(self, dataframe, y0, parameters, t_args=None):
+        y0 =  np.asarray(y0, dtype=np.float64)
         """
         Fit model parameters to experimental data.
 
@@ -150,17 +153,18 @@ class Model:
                     print("Parameter in supplied defaults not found: ", param_name)
                     p_full_list.append(1.0)
             
-            p_full = np.array(p_full_list)
+            p_full = np.array(p_full_list, dtype=np.float64)
             
             total_loss = 0.0
 
             # Process each unique group/experiment
             unique_groups = dataframe['group'].unique()
             for group_id in unique_groups:
+                t_func = self.t_func if self.group_to_light == None else self.group_to_light[group_id]
                 group_data = dataframe[dataframe['group'] == group_id].sort_values('time')
                 
-                times = group_data['time'].values
-                observed_data = group_data['y'].values
+                times = group_data['time'].values.astype(np.float64, copy=False)
+                observed_data = group_data['y'].values.astype(np.float64, copy=False)
 
                 meta_cols = [col for col in group_data.columns if col not in {'time', 'y'}]
                 group_meta = {col: group_data.iloc[0][col] for col in meta_cols}
@@ -168,7 +172,7 @@ class Model:
 
                 try:
                     sol = solve_ivp(
-                        lambda t, y: system(t, y, p_full, self.t_func, current_t_args),
+                        lambda t, y: system(t, y, p_full, t_func, current_t_args),
                         [times[0], times[-1]], y0, 
                         t_eval=times, method=self.ivp_method, rtol=1e-8
                     )
@@ -243,6 +247,7 @@ class Model:
 
         for group_id in dataframe['group'].unique():
             group_data = dataframe[dataframe['group'] == group_id].sort_values('time')
+            t_func = self.t_func if self.group_to_light == None else self.group_to_light[group_id]
             times = group_data['time'].values
             observed_data = group_data['y'].values
 
@@ -263,7 +268,7 @@ class Model:
 
             try:
                 sol = solve_ivp(
-                    lambda t, y: system(t, y, p_full, self.t_func, t_args_copy),
+                    lambda t, y: system(t, y, p_full, t_func, t_args_copy),
                     [times[0], times[-1]], y0,
                     t_eval=times, method=self.ivp_method, rtol=1e-8
                 )

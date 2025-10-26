@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 from scipy.integrate import solve_ivp
 
-from simple_EGFR_transient import model_eqs, param_list, nodes
+from models.transient import model_eqs, param_list, nodes
 from experiments.ramp import read_parquet_and_clean, ramp_light_fn_linear, ramp_light_fn_withlog
 from utils.utils import DATA_PATH, RESULTS_PATH
 from model import Model
@@ -37,6 +37,7 @@ if environ.get('PLOT_INPUT') is not None:
     print(f'Saved data overview plot to {_plot_path}')
 
 y0 = [0.05] * 5
+param_list = param_list
 
 
 if __name__ == '__main__':
