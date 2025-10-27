@@ -87,7 +87,8 @@ if __name__ == '__main__':
           states = nodes,
           model_definition = model_eqs,
           t_func = light_func,
-          t_dep='light'
+          t_dep='light',
+          minimizer_method=mod
           )
     print(datetime.now(),'starting fitting....', mod  )
     m.fit(df,y0, parameters=RESULTS_PATH / 'user_defined_20250913_203158.json')
