@@ -85,6 +85,24 @@ class Model:
             return [f(*args) for f in numerical_funcs]
             
         return system
+    
+    def simulate(self, times, y0, group=None, t_args=None):
+        assert self.fit_result is not None 
+        assert group is not None
+        if t_args is None:
+            t_args = []
+        t_func = self.t_func if self.group_to_light == None else self.group_to_light[group]
+        p_full = self.fit_result['fitted_params'].values()
+
+        y0 =  np.asarray(y0, dtype=np.float64)
+        system = self.make_numerical()
+        sol = solve_ivp(
+                lambda t, y: system(t, y, p_full, t_func, t_args),
+                [times[0], times[-1]], y0,
+                t_eval=times, method=self.ivp_method, rtol=1e-8
+            )
+        if not sol.success: print('sol failed')
+        return sol
 
     def fit(self, dataframe, y0, parameters, t_args=None):
         y0 =  np.asarray(y0, dtype=np.float64)
