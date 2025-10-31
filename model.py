@@ -90,7 +90,7 @@ class Model:
         assert self.fit_result is not None 
         assert group is not None
         if t_args is None:
-            t_args = []
+            t_args = {'group':group}
         t_func = self.t_func if self.group_to_light == None else self.group_to_light[group]
         p_full = self.fit_result['fitted_params'].values()
 

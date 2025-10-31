@@ -67,13 +67,11 @@ def test_lightFn():
   result = np.array([light_func(it, {'group':50}) for it in _t])
   assert np.all(result[0:10] == 0)
 
-
 test_lightFn()
 
 df = read_parquet_and_clean( DATA_PATH / 'exp_data.parquet', save_as= DATA_PATH / 'data_transient_v5.csv')
 df = df.groupby(['group','time']).median('y')
 df.reset_index(inplace=True)
-
 
 if __name__ == '__main__':
   # Prioritize robust optimizers for biochemical parameter fitting

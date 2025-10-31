@@ -6,7 +6,7 @@ import pandas as pd
 def light_func(t, rest=None):
   # Smooth transitions to avoid solver issues
   delta_t = 0.2
-
+  assert type(rest) == None or type(rest) == dict, f"rest is not what it should be: {rest}"
   if (10-delta_t) < t < (10+delta_t): 
     modifier = float(rest['group'])
     if modifier == 0: return 0
@@ -15,7 +15,20 @@ def light_func(t, rest=None):
   else:
     return 0
 
-light_fn = light_func
+# if light func so good, why no light func 2?
+def light_func2(t, rest=None):
+  # Smooth transitions to avoid solver issues
+  delta_t = 0.5
+  assert type(rest) == None or type(rest) == dict, f"rest is not what it should be: {rest}"
+  if (10-delta_t) < t < (10+delta_t): 
+    modifier = float(rest['group'])
+    if modifier == 0: return 0
+    log_modifier = np.log(modifier)
+    return (log_modifier - log_modifier * (np.abs(10-t)/delta_t)) / np.log(1000)  # normalizing by biggest possible value
+  else:
+    return 0
+
+light_fn = light_func2
 
 def read_parquet_and_clean(file, save_as=None):
     assert str(file).endswith('.parquet')
