@@ -29,7 +29,7 @@ class Model:
     params = []    
     eqs = []
     fit_result = None
-    def __init__(self, name, states, parameters, model_definition, t_func, t_dep, ivp_method='LSODA', minimizer_method='L-BFGS-B', group_to_light=None):
+    def __init__(self, name, states, parameters, model_definition,  t_dep, t_func=None, ivp_method='LSODA', minimizer_method='L-BFGS-B', group_to_light=None):
         '''
         We give it a name, we give it all the symbolic equations, and params (defaults?)
 
@@ -474,10 +474,11 @@ class Model:
 
         return None
 
-    def save_results(self):
+    def save_results(self, path=None):
         assert self.fit_result is not None, "To save results you gotta have results."
         time = datetime.now().strftime('%d-%m-%Y_%H:%M:%S')
-        path = RESULTS_PATH / f'{self.name}_{time}_{self.minimizer_method}.json'
+        if path is None:
+            path = RESULTS_PATH / f'{self.name}_{time}_{self.minimizer_method}.json'
         from pprint import pprint
         pprint(self.fit_result)
         with open(path, 'w') as f: json.dump(self.fit_result, f, indent=2)

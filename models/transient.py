@@ -89,6 +89,6 @@ if __name__ == '__main__':
           minimizer_method=mod
           )
     print(datetime.now(),'starting fitting....', mod  )
-    m.fit(df,y0, parameters=RESULTS_PATH / 'user_defined_20250913_203158.json')
+    m.fit(df,y0, parameters = RESULTS_PATH / 'user_defined_20250913_203158.json')
     m.save_results()
     print(f'done w/ {mod} at: ', datetime.now() )

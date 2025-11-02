@@ -3,33 +3,10 @@ from pathlib import Path, PosixPath
 import numpy as np
 from utils.utils import DATA_PATH
 
-def ramp_light_fn_baseline(t, rest):
-    # Smooth transition half-width
-    delta_t = 0.2
-
-    if  t < 10 or t > 150: return 0
-    # Loop through all activation times
-    for ti in range(10, 151):  # inclusive of 150
-        if (ti - delta_t) < t < (ti + delta_t):
-            modifier = float(rest['stim_exposure'])
-            if modifier == 0:
-                return 0
-            log_modifier = np.log(modifier)
-            return log_modifier - log_modifier * (np.abs(ti - t) / delta_t)
-
-    # If t not near any activation integer
-    return 0
-
-from math import log
-
-def ramp_light_fn_withlog(t, rest=None):
-    if t < 10 or t > 150: return 0
-    r = np.log1p((t-10) / 140 * 700 )
-    return r / 6.54
-
 def ramp_light_fn_linear(t, rest=None):
     if t < 10 or t > 150: return 0
     r = (t-10) / 140 * 6
+    # TODO: parametrize this, make it take values from context, not a magic number.
     return  r / 5.98
 
 light_fn = ramp_light_fn_linear
@@ -85,9 +62,6 @@ def read_parquet_and_clean(file, save_as=None):
     denom = denom.replace([0, np.inf, -np.inf], np.nan)
     ex['y'] = ex['frac_sub'] / denom
     ex = ex.dropna(subset=['y'])
-
-    #ex.drop(axis=1, columns=ex.columns.difference(['time','group', 'y', 'stim_exposure' ]), inplace=True)
-    #ex.sort_index('time')
 
     if save_as is not None: ex.to_csv(DATA_PATH / save_as, index=False)
 

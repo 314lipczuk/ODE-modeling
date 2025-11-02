@@ -6,7 +6,7 @@ from datetime import datetime
 from scipy.integrate import solve_ivp
 
 from models.transient import model_eqs, param_list, nodes
-from experiments.ramp import read_parquet_and_clean, ramp_light_fn_linear, ramp_light_fn_withlog
+from experiments.ramp import read_parquet_and_clean, light_fn
 from utils.utils import DATA_PATH, RESULTS_PATH
 from model import Model
 from os import environ
@@ -43,7 +43,6 @@ if __name__ == '__main__':
   # Prioritize robust optimizers for biochemical parameter fitting
   #models = ['trust-constr', 'L-BFGS-B', 'SLSQP', 'Nelder-Mead', 'COBYLA', 'TNC']
   models = ['L-BFGS-B'] #,'Nelder-Mead']
-  light_fn = ramp_light_fn_linear
 
   # plot the training vs original data
   #for light_func in [ramp_light_fn_withlog, ramp_light_fn_linear]:
@@ -82,8 +81,3 @@ if __name__ == '__main__':
     name = f'RAMP_{time}_t_lin_{m}'
     ax.set_label(name)
     ax.saveplot(RESULTS_PATH / f'{name}.png')
-
-
-# Note: Intro to AI; 21.10.2025  
-# slide 59 -> what is the relationship between these two conditions; cna you go back to general case
-# everything up to MRW from lec 4 is on midterm
